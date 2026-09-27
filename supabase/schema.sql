@@ -18,6 +18,7 @@ create table vehicles (
   lnbits_wallet_id text not null,
   lnbits_invoice_key text not null,         -- read-only key, used for status checks
   lightning_address text not null,          -- passed to Bitika as `lightningAddress`
+  conductor_user_id uuid references auth.users(id), -- Supabase Auth login for this vehicle's conductor
   created_at timestamptz default now()
 );
 
@@ -47,12 +48,22 @@ create index transactions_receipt_last3_idx on transactions (vehicle_id, receipt
 -- or run this if your project already has the publication.)
 alter publication supabase_realtime add table transactions;
 
--- Row Level Security: locked down by default. For the hackathon, either:
---   a) do writes only from the server (service role key) and reads from the dashboard
---      via a permissive SELECT policy scoped by vehicle_id, or
---   b) turn RLS off on these tables entirely for speed, and lock it down after judging.
--- Option (a), minimal version:
+-- Row Level Security: all writes go through the server (service role key, which
+-- bypasses RLS). The browser only reads, and only as a logged-in conductor,
+-- scoped to the vehicle they're linked to via vehicles.conductor_user_id.
 alter table transactions enable row level security;
-create policy "public can read transactions" on transactions for select using (true);
 alter table vehicles enable row level security;
-create policy "public can read vehicles" on vehicles for select using (true);
+alter table saccos enable row level security;
+
+create index vehicles_conductor_user_idx on vehicles (conductor_user_id);
+
+create policy "conductor reads own vehicle" on vehicles
+  for select to authenticated
+  using (conductor_user_id = auth.uid());
+
+create policy "conductor reads own transactions" on transactions
+  for select to authenticated
+  using (exists (
+    select 1 from vehicles v
+    where v.id = transactions.vehicle_id and v.conductor_user_id = auth.uid()
+  ));
