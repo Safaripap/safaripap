@@ -11,6 +11,9 @@ create index if not exists vehicles_conductor_user_idx on vehicles (conductor_us
 drop policy if exists "public can read transactions" on transactions;
 drop policy if exists "public can read vehicles" on vehicles;
 
+-- RLS may have been switched off on the live project for speed; turn it back on.
+alter table transactions enable row level security;
+alter table vehicles enable row level security;
 alter table saccos enable row level security;
 
 create policy "conductor reads own vehicle" on vehicles
