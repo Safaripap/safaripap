@@ -70,9 +70,9 @@ Never commit `.env`. It's in `.gitignore` — double check before every push to 
 
 ## Current status
 
-Confirmed working end-to-end in Bitika's sandbox: the passenger PWA payment flow, including phone numbers entered as 07, 01, or 254 formats; Bitika webhook delivery with HMAC signature verification across all three outcomes (success, M-Pesa decline, Lightning payout failure); the live conductor dashboard via Supabase Realtime with no refresh needed; Nostr receipt publishing on successful payments, done non-blocking so a slow relay never delays the webhook response; and per-vehicle LNbits wallets and Lightning Addresses.
+Confirmed working end-to-end in Bitika's sandbox: the passenger PWA payment flow, including phone numbers entered as 07, 01, or 254 formats; the USSD flow via Africa's Talking's sandbox simulator, using the identical payment and webhook logic as the PWA; Bitika webhook delivery with HMAC signature verification across all three outcomes (success, M-Pesa decline, Lightning payout failure); the live conductor dashboard via Supabase Realtime with no refresh needed; Nostr receipt publishing on successful payments, done non-blocking so a slow relay never delays the webhook response; and per-vehicle LNbits wallets and Lightning Addresses.
 
-Not yet done: the USSD flow has not been tested end-to-end against the Africa's Talking sandbox simulator; there is no landing page yet; the PWA and dashboard are functional but undesigned; and the live Bitika key is pending approval, which is required before demo day since the sandbox never moves real money.
+Not yet done: there is no landing page yet; the PWA and dashboard are functional but undesigned; a sacco/owner dashboard for daily per-vehicle totals is planned but not built; and the live Bitika key is pending approval, which is required before demo day since the sandbox never moves real money.
 
 ## Team
 
