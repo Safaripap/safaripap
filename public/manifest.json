@@ -1,0 +1,9 @@
+{
+  "name": "Matatu Lightning Pay",
+  "short_name": "MatatuPay",
+  "start_url": "/pay",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#f7931a",
+  "icons": []
+}
