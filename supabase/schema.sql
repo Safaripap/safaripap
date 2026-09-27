@@ -67,3 +67,18 @@ create policy "conductor reads own transactions" on transactions
     select 1 from vehicles v
     where v.id = transactions.vehicle_id and v.conductor_user_id = auth.uid()
   ));
+
+-- Conductors can mark their own fares as verified, and change nothing else.
+revoke update on transactions from anon, authenticated;
+grant update (verified_by_conductor, verified_at) on transactions to authenticated;
+
+create policy "conductor verifies own transactions" on transactions
+  for update to authenticated
+  using (exists (
+    select 1 from vehicles v
+    where v.id = transactions.vehicle_id and v.conductor_user_id = auth.uid()
+  ))
+  with check (exists (
+    select 1 from vehicles v
+    where v.id = transactions.vehicle_id and v.conductor_user_id = auth.uid()
+  ));
