@@ -12,7 +12,7 @@ A passenger pays a normal M-Pesa fare from their phone. Bitika settles that paym
 2. They enter the fare and their M-Pesa number.
 3. The app calls Bitika's `/collect` endpoint. Bitika triggers the M-Pesa STK push, receives the KES payment, converts it, and forwards it as sats to the vehicle's own Lightning address (hosted on our LNbits instance).
 4. Bitika sends signed webhooks as the payment progresses (`processing_payment` to `fulfilled`, or `failed` / `payment_failed` on decline). Our server verifies the HMAC signature on every webhook before trusting it, and updates the transaction in Supabase.
-5. The conductor's dashboard (`/dashboard/<vehicleCode>`) updates live via Supabase Realtime — no refresh needed.
+5. The conductor signs in at `/login` with their vehicle code and PIN. Their dashboard (`/dashboard/<vehicleCode>`) shows only their own vehicle's fares (enforced by Supabase RLS) and updates live via Supabase Realtime — no refresh needed.
 6. On a successful payment, a receipt event is published to Nostr relays, giving a public, tamper-evident record of the fare.
 
 ## Tech stack
@@ -61,12 +61,13 @@ Never commit `.env`. It's in `.gitignore` — double check before every push to 
 
 1. `npm install`
 2. Create `.env` with the variables above.
-3. Run `supabase/schema.sql` in your Supabase project's SQL editor, then enable Realtime on the `transactions` table (Database, Replication).
+3. Run `supabase/schema.sql` in your Supabase project's SQL editor (on an existing project, run the files in `supabase/migrations/` instead), then enable Realtime on the `transactions` table (Database, Replication).
 4. In LNbits, create a wallet plus an LNURLp pay link (variable amount) per vehicle to get its Lightning Address.
 5. Insert a `saccos` row and a `vehicles` row per vehicle in Supabase, including its `lnbits_wallet_id`, `lnbits_invoice_key`, and `lightning_address`.
-6. Run `npm run dev`, then in a second terminal `ngrok http 3000`.
-7. On the Bitika dashboard, register a webhook endpoint at `<ngrok-url>/api/webhooks/bitika` and copy the signing secret it gives you into `.env` as `BITIKA_WEBHOOK_SECRET`.
-8. On Africa's Talking, point your sandbox USSD channel's callback at `<ngrok-url>/api/ussd`.
+6. Create a conductor login per vehicle: `npm run create-conductor <vehicleCode> <6-digit PIN>`. Running it again resets the PIN.
+7. Run `npm run dev`, then in a second terminal `ngrok http 3000`.
+8. On the Bitika dashboard, register a webhook endpoint at `<ngrok-url>/api/webhooks/bitika` and copy the signing secret it gives you into `.env` as `BITIKA_WEBHOOK_SECRET`.
+9. On Africa's Talking, point your sandbox USSD channel's callback at `<ngrok-url>/api/ussd`.
 
 ## Current status
 

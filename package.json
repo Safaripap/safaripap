@@ -2,12 +2,16 @@
   "name": "matatu-lightning",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "onboard-vehicle": "tsx scripts/onboard-vehicle.ts"
+    "onboard-vehicle": "tsx scripts/onboard-vehicle.ts",
+    "create-conductor": "tsx scripts/create-conductor.ts"
   },
   "dependencies": {
     "@noble/hashes": "^1.5.0",

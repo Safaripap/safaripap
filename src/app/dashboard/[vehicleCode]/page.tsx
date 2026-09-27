@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 
 interface Txn {
@@ -16,18 +17,31 @@ interface Txn {
 export default function DashboardPage({ params }: { params: { vehicleCode: string } }) {
   const [rows, setRows] = useState<Txn[]>([])
   const [toast, setToast] = useState<string | null>(null)
+  const [notFound, setNotFound] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
     let vehicleId: string
     let channel: ReturnType<typeof supabaseBrowser.channel>
 
     ;(async () => {
+      const { data: { session } } = await supabaseBrowser.auth.getSession()
+      if (!session) {
+        router.replace('/login')
+        return
+      }
+
+      // RLS only returns the vehicle linked to the signed-in conductor, so
+      // someone else's vehicle code comes back empty.
       const { data: vehicle } = await supabaseBrowser
         .from('vehicles')
         .select('id')
         .eq('vehicle_code', params.vehicleCode.toUpperCase())
         .single()
-      if (!vehicle) return
+      if (!vehicle) {
+        setNotFound(true)
+        return
+      }
       vehicleId = vehicle.id
 
       const { data: initial } = await supabaseBrowser
@@ -69,7 +83,12 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
     return () => {
       if (channel) supabaseBrowser.removeChannel(channel)
     }
-  }, [params.vehicleCode])
+  }, [params.vehicleCode, router])
+
+  async function signOut() {
+    await supabaseBrowser.auth.signOut()
+    router.replace('/login')
+  }
 
   async function verify(id: string) {
     await supabaseBrowser
@@ -83,7 +102,14 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
 
   return (
     <main className="min-h-screen p-4 bg-gray-50">
-      <h1 className="text-2xl font-bold mb-4">{params.vehicleCode.toUpperCase()} — live fares</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">{params.vehicleCode.toUpperCase()} — live fares</h1>
+        <button onClick={signOut} className="text-lg text-gray-500 underline">
+          Sign out
+        </button>
+      </div>
+
+      {notFound && <p className="text-red-600 text-lg mb-4">This vehicle isn't linked to your account.</p>}
 
       {toast && (
         <div className="fixed top-4 left-4 right-4 bg-green-500 text-white text-xl font-bold rounded-xl p-4 text-center z-10 shadow-lg">
@@ -98,7 +124,7 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
       </div>
 
       <div className="space-y-2">
-        {rows.length === 0 && <p className="text-gray-400 text-lg">No fares yet.</p>}
+        {!notFound && rows.length === 0 && <p className="text-gray-400 text-lg">No fares yet.</p>}
         {rows.map((r) => (
           <button
             key={r.id}
