@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 
@@ -18,6 +18,9 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
   const [rows, setRows] = useState<Txn[]>([])
   const [toast, setToast] = useState<string | null>(null)
   const [notFound, setNotFound] = useState(false)
+  // Fares we've already announced, so a paid fare only alerts once even if
+  // Realtime sends more updates for it (e.g. when it's verified).
+  const announcedIds = useRef(new Set<string>())
   const router = useRouter()
 
   useEffect(() => {
@@ -51,6 +54,7 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
         .order('created_at', { ascending: false })
         .limit(50)
       setRows(initial ?? [])
+      for (const r of initial ?? []) if (r.status === 'fulfilled') announcedIds.current.add(r.id)
 
       // React Strict Mode runs this effect twice in dev. If a channel with this
       // name is already subscribed from the previous run, remove it first —
@@ -71,8 +75,11 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
               const rest = prev.filter((r) => r.id !== row.id)
               return [row, ...rest]
             })
-            if (payload.eventType === 'INSERT') {
-              setToast(`New payment: KES ${row.amount_kes}`)
+            // A row is inserted when the passenger starts paying, and only
+            // becomes 'fulfilled' once the money has actually arrived.
+            if (row.status === 'fulfilled' && !announcedIds.current.has(row.id)) {
+              announcedIds.current.add(row.id)
+              setToast(`Paid: KES ${row.amount_kes}`)
               setTimeout(() => setToast(null), 4000)
             }
           }
