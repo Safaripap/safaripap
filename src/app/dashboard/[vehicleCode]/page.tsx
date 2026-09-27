@@ -91,13 +91,19 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
         </div>
       )}
 
+      <div className="grid grid-cols-[2fr_1.2fr_1.6fr] gap-2 px-4 mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+        <span>Paid by</span>
+        <span className="text-center">Fare</span>
+        <span className="text-right">Status</span>
+      </div>
+
       <div className="space-y-2">
         {rows.length === 0 && <p className="text-gray-400 text-lg">No fares yet.</p>}
         {rows.map((r) => (
           <button
             key={r.id}
             onClick={() => !r.verified_by_conductor && r.status === 'fulfilled' && verify(r.id)}
-            className={`w-full text-left p-4 rounded-xl border-2 flex items-center justify-between ${
+            className={`w-full text-left p-4 rounded-xl border-2 grid grid-cols-[2fr_1.2fr_1.6fr] gap-2 items-center ${
               r.verified_by_conductor
                 ? 'bg-green-50 border-green-300'
                 : r.status === 'fulfilled'
@@ -106,8 +112,8 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
             }`}
           >
             <span className="text-xl text-gray-600">…{r.phone_last3} / …{r.receipt_last3}</span>
-            <span className="text-4xl font-extrabold">KES {r.amount_kes}</span>
-            <span className="text-xl font-semibold">{statusLabel(r)}</span>
+            <span className="text-4xl font-extrabold text-center">KES {r.amount_kes}</span>
+            <span className="text-xl font-semibold text-right">{statusLabel(r)}</span>
           </button>
         ))}
       </div>
