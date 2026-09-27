@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase-browser'
+import { alertFarePaid, enableFareAlerts, fareAlertsEnabled } from '@/lib/fare-alerts'
 
 interface Txn {
   id: string
@@ -18,6 +19,7 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
   const [rows, setRows] = useState<Txn[]>([])
   const [toast, setToast] = useState<string | null>(null)
   const [notFound, setNotFound] = useState(false)
+  const [alertsOn, setAlertsOn] = useState(false)
   // Fares we've already announced, so a paid fare only alerts once even if
   // Realtime sends more updates for it (e.g. when it's verified).
   const announcedIds = useRef(new Set<string>())
@@ -79,6 +81,7 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
             // becomes 'fulfilled' once the money has actually arrived.
             if (row.status === 'fulfilled' && !announcedIds.current.has(row.id)) {
               announcedIds.current.add(row.id)
+              alertFarePaid(row.amount_kes)
               setToast(`Paid: KES ${row.amount_kes}`)
               setTimeout(() => setToast(null), 4000)
             }
@@ -91,6 +94,11 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
       if (channel) supabaseBrowser.removeChannel(channel)
     }
   }, [params.vehicleCode, router])
+
+  async function turnOnAlerts() {
+    await enableFareAlerts()
+    setAlertsOn(fareAlertsEnabled())
+  }
 
   async function signOut() {
     await supabaseBrowser.auth.signOut()
@@ -115,6 +123,15 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
           Sign out
         </button>
       </div>
+
+      {!notFound && !alertsOn && (
+        <button
+          onClick={turnOnAlerts}
+          className="w-full bg-brand text-white text-xl font-bold rounded-xl py-3 mb-4"
+        >
+          🔔 Turn on payment alerts
+        </button>
+      )}
 
       {notFound && <p className="text-red-600 text-lg mb-4">This vehicle isn't linked to your account.</p>}
 
