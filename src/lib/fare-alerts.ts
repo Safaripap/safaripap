@@ -1,12 +1,18 @@
 // Alerts for the conductor dashboard when a fare is paid. Browsers only allow
-// sound after the user has tapped something, so enableFareAlerts() must be
-// called from a click handler.
+// sound and the notification permission prompt after the user has tapped
+// something, so enableFareAlerts() must be called from a click handler.
 
 let audioCtx: AudioContext | null = null
+let swRegistration: ServiceWorkerRegistration | null = null
 
 export async function enableFareAlerts(): Promise<void> {
   audioCtx ??= new AudioContext()
   await audioCtx.resume()
+
+  if ('Notification' in window && 'serviceWorker' in navigator) {
+    swRegistration = await navigator.serviceWorker.register('/sw.js')
+    if (Notification.permission === 'default') await Notification.requestPermission()
+  }
 }
 
 export function fareAlertsEnabled(): boolean {
@@ -30,7 +36,20 @@ function playChime() {
   })
 }
 
-export function alertFarePaid(_amountKes: number) {
+// Only when the dashboard is in the background; on screen the toast and
+// chime already cover it.
+function showNotification(amountKes: number) {
+  if (!swRegistration || !document.hidden || Notification.permission !== 'granted') return
+  swRegistration.showNotification(`Paid: KES ${amountKes}`, {
+    body: 'Tap to open the dashboard',
+    tag: 'fare-paid',
+    renotify: true,
+    data: { url: window.location.pathname },
+  } as NotificationOptions)
+}
+
+export function alertFarePaid(amountKes: number) {
   playChime()
   navigator.vibrate?.([200, 100, 200]) // Android only; iOS ignores it
+  showNotification(amountKes)
 }
