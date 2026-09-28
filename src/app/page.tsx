@@ -1,140 +1,88 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabaseBrowser } from '@/lib/supabase'
+import { SimplePool } from 'nostr-tools/pool'
+import type { Filter } from 'nostr-tools/filter'
 
-interface Txn {
-  id: string
-  amount_kes: number
-  phone_last3: string
-  receipt_last3: string
-  status: string
-  verified_by_conductor: boolean
-  created_at: string
-}
+const RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']
+const APP_PUBKEY = process.env.NEXT_PUBLIC_NOSTR_APP_PUBKEY!
 
-type LoadState = 'loading' | 'notFound' | 'ready'
-
-export default function DashboardPage({ params }: { params: { vehicleCode: string } }) {
-  const [rows, setRows] = useState<Txn[]>([])
-  const [toast, setToast] = useState<string | null>(null)
-  const [loadState, setLoadState] = useState<LoadState>('loading')
-  const code = params.vehicleCode.toUpperCase()
+export default function SaccoPage({ params }: { params: { saccoId: string } }) {
+  const [totalKes, setTotalKes] = useState(0)
+  const [byVehicle, setByVehicle] = useState<Record<string, number>>({})
+  const [connected, setConnected] = useState(false)
 
   useEffect(() => {
-    let vehicleId: string
-    let channel: ReturnType<typeof supabaseBrowser.channel>
+    const pool = new SimplePool()
+    const seen = new Set<string>()
 
-    ;(async () => {
-      const { data: vehicle } = await supabaseBrowser
-        .from('vehicles')
-        .select('id')
-        .eq('vehicle_code', code)
-        .single()
-      if (!vehicle) {
-        setLoadState('notFound')
-        return
-      }
-      vehicleId = vehicle.id
+    const filter: Filter = {
+      kinds: [1],
+      authors: [APP_PUBKEY],
+      '#sacco': [params.saccoId],
+      since: Math.floor(Date.now() / 1000) - 86400,
+    }
 
-      const { data: initial } = await supabaseBrowser
-        .from('transactions')
-        .select('*')
-        .eq('vehicle_id', vehicleId)
-        .order('created_at', { ascending: false })
-        .limit(50)
-      setRows(initial ?? [])
-      setLoadState('ready')
-
-      channel = supabaseBrowser
-        .channel(`txns-${vehicleId}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'transactions', filter: `vehicle_id=eq.${vehicleId}` },
-          (payload) => {
-            const row = payload.new as Txn
-            setRows((prev) => {
-              const rest = prev.filter((r) => r.id !== row.id)
-              return [row, ...rest]
-            })
-            if (payload.eventType === 'INSERT') {
-              setToast(`New payment: KES ${row.amount_kes}`)
-              setTimeout(() => setToast(null), 4000)
-            }
+    const sub = pool.subscribeMany(
+      RELAYS,
+      filter,
+      {
+        oneose() {
+          setConnected(true)
+        },
+        onevent(event) {
+          setConnected(true)
+          if (seen.has(event.id)) return // relays can send duplicates
+          seen.add(event.id)
+          try {
+            const { amount_kes, vehicle } = JSON.parse(event.content)
+            setTotalKes((t) => t + amount_kes)
+            setByVehicle((prev) => ({ ...prev, [vehicle]: (prev[vehicle] ?? 0) + amount_kes }))
+          } catch {
+            // ignore malformed events
           }
-        )
-        .subscribe()
-    })()
+        },
+      }
+    )
 
     return () => {
-      if (channel) supabaseBrowser.removeChannel(channel)
+      sub.close()
+      pool.close(RELAYS)
     }
-  }, [params.vehicleCode, code])
-
-  async function verify(id: string) {
-    await supabaseBrowser
-      .from('transactions')
-      .update({ verified_by_conductor: true, verified_at: new Date().toISOString() })
-      .eq('id', id)
-  }
-
-  const statusLabel = (r: Txn) =>
-    r.verified_by_conductor ? 'Verified' : r.status === 'fulfilled' ? 'Paid — tap to verify' : 'Waiting…'
+  }, [params.saccoId])
 
   return (
-    <main className="min-h-screen p-4 pb-10">
-      <div className="mb-6 flex items-center justify-between">
-        <span className="route-plate">{code}</span>
-        <span className="text-sm text-brand-dark/50">live fares</span>
+    <main className="min-h-screen p-6 pb-10">
+      <div className="flex items-center justify-between mb-8">
+        <span className="route-plate">{params.saccoId.toUpperCase()}</span>
+        <span className={`text-sm font-medium ${connected ? 'text-route' : 'text-brand-dark/40'}`}>
+          {connected ? '● live' : 'connecting…'}
+        </span>
       </div>
 
-      {toast && (
-        <div className="fixed top-4 left-4 right-4 bg-route text-white text-xl font-semibold rounded-xl p-4 text-center z-10 shadow-lg">
-          {toast}
-        </div>
-      )}
+      <p className="text-lg text-brand-dark/50 mb-1">Today's mobile-money fares</p>
+      <div className="font-display text-display mb-10">KES {totalKes.toLocaleString()}</div>
 
-      {loadState === 'loading' && (
-        <div className="text-center py-16">
-          <div className="w-10 h-10 border-4 border-brand-dark/20 border-t-brand-dark rounded-full mx-auto mb-4 animate-spin" />
-          <p className="text-brand-dark/50">Connecting to {code}…</p>
-        </div>
-      )}
-
-      {loadState === 'notFound' && (
-        <div className="text-center py-16 max-w-sm mx-auto">
-          <p className="text-lg text-brand-dark/60">
-            No vehicle registered as {code}. Double-check the code this dashboard link was sent for.
-          </p>
-        </div>
-      )}
-
-      {loadState === 'ready' && (
-        <div className="space-y-2">
-          {rows.length === 0 && (
-            <div className="text-center py-16">
-              <p className="text-brand-dark/40 text-lg">No fares yet — this updates the moment a passenger pays.</p>
+      <h2 className="text-sm uppercase tracking-widest text-brand-dark/40 mb-3">By vehicle</h2>
+      <div className="space-y-2">
+        {Object.entries(byVehicle)
+          .sort(([, a], [, b]) => b - a)
+          .map(([code, amt]) => (
+            <div key={code} className="flex justify-between items-center text-2xl bg-white rounded-xl p-4 border border-brand-dark/10">
+              <span className="font-display">{code}</span>
+              <span className="text-brand-dark/70">KES {amt.toLocaleString()}</span>
             </div>
-          )}
-          {rows.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => !r.verified_by_conductor && r.status === 'fulfilled' && verify(r.id)}
-              className={`w-full text-left p-4 rounded-xl border-2 flex items-center justify-between gap-3 ${
-                r.verified_by_conductor
-                  ? 'bg-route-light border-route/40'
-                  : r.status === 'fulfilled'
-                  ? 'bg-wait-light border-wait/40'
-                  : 'bg-white border-brand-dark/10'
-              }`}
-            >
-              <span className="font-display text-3xl">KES {r.amount_kes}</span>
-              <span className="text-lg text-brand-dark/50 hidden sm:inline">…{r.phone_last3} / …{r.receipt_last3}</span>
-              <span className="text-lg font-semibold text-right">{statusLabel(r)}</span>
-            </button>
           ))}
-        </div>
-      )}
+        {Object.keys(byVehicle).length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-brand-dark/40 text-lg">
+              {connected ? 'Waiting for the first fare of the day…' : 'Connecting to relays…'}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <p className="text-sm text-brand-dark/30 mt-10">Live via Nostr — relays: {RELAYS.join(', ')}</p>
     </main>
   )
 }
