@@ -10,6 +10,7 @@ const APP_PUBKEY = process.env.NEXT_PUBLIC_NOSTR_APP_PUBKEY!
 export default function SaccoPage({ params }: { params: { saccoId: string } }) {
   const [totalKes, setTotalKes] = useState(0)
   const [byVehicle, setByVehicle] = useState<Record<string, number>>({})
+  const [connected, setConnected] = useState(false)
 
   useEffect(() => {
     const pool = new SimplePool()
@@ -26,7 +27,11 @@ export default function SaccoPage({ params }: { params: { saccoId: string } }) {
       RELAYS,
       filter,
       {
+        oneose() {
+          setConnected(true)
+        },
         onevent(event) {
+          setConnected(true)
           if (seen.has(event.id)) return // relays can send duplicates
           seen.add(event.id)
           try {
@@ -47,22 +52,37 @@ export default function SaccoPage({ params }: { params: { saccoId: string } }) {
   }, [params.saccoId])
 
   return (
-    <main className="min-h-screen p-6 bg-gray-50">
-      <h1 className="text-xl text-gray-500 mb-2">Today's mobile-money fares</h1>
-      <div className="text-6xl font-extrabold mb-8">KES {totalKes.toLocaleString()}</div>
-
-      <h2 className="text-lg font-semibold text-gray-500 mb-3">By vehicle</h2>
-      <div className="space-y-2">
-        {Object.entries(byVehicle).map(([code, amt]) => (
-          <div key={code} className="flex justify-between text-2xl bg-white rounded-xl p-4 border border-gray-200">
-            <span className="font-bold">{code}</span>
-            <span>KES {amt.toLocaleString()}</span>
-          </div>
-        ))}
-        {Object.keys(byVehicle).length === 0 && <p className="text-gray-400 text-lg">Waiting for fares…</p>}
+    <main className="min-h-screen p-6 pb-10">
+      <div className="flex items-center justify-between mb-8">
+        <span className="route-plate">{params.saccoId.toUpperCase()}</span>
+        <span className={`text-sm font-medium ${connected ? 'text-route' : 'text-brand-dark/40'}`}>
+          {connected ? '● live' : 'connecting…'}
+        </span>
       </div>
 
-      <p className="text-sm text-gray-400 mt-8">Live via Nostr — relays: {RELAYS.join(', ')}</p>
+      <p className="text-lg text-brand-dark/50 mb-1">Today's mobile-money fares</p>
+      <div className="font-display text-display mb-10">KES {totalKes.toLocaleString()}</div>
+
+      <h2 className="text-sm uppercase tracking-widest text-brand-dark/40 mb-3">By vehicle</h2>
+      <div className="space-y-2">
+        {Object.entries(byVehicle)
+          .sort(([, a], [, b]) => b - a)
+          .map(([code, amt]) => (
+            <div key={code} className="flex justify-between items-center text-2xl bg-white rounded-xl p-4 border border-brand-dark/10">
+              <span className="font-display">{code}</span>
+              <span className="text-brand-dark/70">KES {amt.toLocaleString()}</span>
+            </div>
+          ))}
+        {Object.keys(byVehicle).length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-brand-dark/40 text-lg">
+              {connected ? 'Waiting for the first fare of the day…' : 'Connecting to relays…'}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <p className="text-sm text-brand-dark/30 mt-10">Live via Nostr — relays: {RELAYS.join(', ')}</p>
     </main>
   )
 }

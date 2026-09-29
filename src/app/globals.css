@@ -6,8 +6,67 @@ html, body {
   height: 100%;
 }
 
+body {
+  background-color: #faf6ee;
+}
+
 /* Big, glanceable tap targets everywhere — this app is used one-handed,
    in a moving vehicle, often in bright daylight. */
 button {
   min-height: 3.25rem;
 }
+
+/* Visible keyboard focus everywhere — don't rely on the browser default,
+   but don't remove it either. */
+:focus-visible {
+  outline: 3px solid #1e7a5f;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Route-plate badge: the small vehicle-code marker that appears at the
+   top of every screen, styled like the number board on a matatu's
+   windscreen rather than a plain page heading. */
+.route-plate {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  background: #1a1a2e;
+  color: #faf6ee;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-size: 1.05rem;
+}
+
+/* Ticket-stub panel used for the payment receipt — a torn-edge card so a
+   confirmation reads as something you'd hand to a conductor. */
+.ticket-stub {
+  position: relative;
+  background: white;
+  border-radius: 1.25rem;
+  padding: 2rem 1.75rem;
+  box-shadow: 0 12px 30px -12px rgba(26, 26, 46, 0.35);
+}
+.ticket-stub::before,
+.ticket-stub::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1.75rem;
+  height: 1.75rem;
+  background: #faf6ee;
+  border-radius: 9999px;
+}
+.ticket-stub::before { top: -0.875rem; }
+.ticket-stub::after { bottom: -0.875rem; }
