@@ -1,7 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase'
+import { alertFarePaid, enableFareAlerts, fareAlertsEnabled } from '@/lib/fare-alerts'
 
 interface Txn {
   id: string
@@ -19,6 +21,11 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
   const [rows, setRows] = useState<Txn[]>([])
   const [toast, setToast] = useState<string | null>(null)
   const [loadState, setLoadState] = useState<LoadState>('loading')
+  const [alertsOn, setAlertsOn] = useState(false)
+  // Fares we've already announced, so a paid fare only alerts once even if
+  // Realtime sends more updates for it (e.g. when it's verified).
+  const announcedIds = useRef(new Set<string>())
+  const router = useRouter()
   const code = params.vehicleCode.toUpperCase()
 
   useEffect(() => {
@@ -44,10 +51,19 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
         .order('created_at', { ascending: false })
         .limit(50)
       setRows(initial ?? [])
+      for (const r of initial ?? []) if (r.status === 'fulfilled') announcedIds.current.add(r.id)
       setLoadState('ready')
 
+      // React Strict Mode runs this effect twice in dev. If a channel with this
+      // name is already subscribed from the previous run, remove it first —
+      // Supabase reuses channels by name and throws if you .on() one that's
+      // already subscribed.
+      const channelName = `txns-${vehicleId}`
+      const existing = supabaseBrowser.getChannels().find((c) => c.topic === `realtime:${channelName}`)
+      if (existing) supabaseBrowser.removeChannel(existing)
+
       channel = supabaseBrowser
-        .channel(`txns-${vehicleId}`)
+        .channel(channelName)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'transactions', filter: `vehicle_id=eq.${vehicleId}` },
@@ -57,8 +73,12 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
               const rest = prev.filter((r) => r.id !== row.id)
               return [row, ...rest]
             })
-            if (payload.eventType === 'INSERT') {
-              setToast(`New payment: KES ${row.amount_kes}`)
+            // A row is inserted when the passenger starts paying, and only
+            // becomes 'fulfilled' once the money has actually arrived.
+            if (row.status === 'fulfilled' && !announcedIds.current.has(row.id)) {
+              announcedIds.current.add(row.id)
+              alertFarePaid(row.amount_kes)
+              setToast(`Paid: KES ${row.amount_kes}`)
               setTimeout(() => setToast(null), 4000)
             }
           }
@@ -69,7 +89,17 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
     return () => {
       if (channel) supabaseBrowser.removeChannel(channel)
     }
-  }, [params.vehicleCode, code])
+  }, [code, router])
+
+  async function turnOnAlerts() {
+    await enableFareAlerts()
+    setAlertsOn(fareAlertsEnabled())
+  }
+
+  async function signOut() {
+    await supabaseBrowser.auth.signOut()
+    router.replace('/login')
+  }
 
   async function verify(id: string) {
     await supabaseBrowser
@@ -87,6 +117,15 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
         <span className="route-plate">{code}</span>
         <span className="text-sm text-brand-dark/50">live fares</span>
       </div>
+
+      {loadState === 'ready' && !alertsOn && (
+        <button
+          onClick={turnOnAlerts}
+          className="w-full bg-brand text-white text-xl font-bold rounded-xl py-3 mb-4"
+        >
+          🔔 Turn on payment alerts
+        </button>
+      )}
 
       {toast && (
         <div className="fixed top-4 left-4 right-4 bg-route text-white text-xl font-semibold rounded-xl p-4 text-center z-10 shadow-lg">

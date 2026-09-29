@@ -25,11 +25,15 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text()
   const signatureHeader = req.headers.get('x-bitika-signature')
 
-  if (signatureHeader && process.env.BITIKA_WEBHOOK_SECRET) {
-    const valid = verifyBitikaSignature(rawBody, signatureHeader, process.env.BITIKA_WEBHOOK_SECRET)
-    if (!valid) {
-      return NextResponse.json({ error: 'bad signature' }, { status: 401 })
-    }
+  // Every webhook must be signed. Skipping the check when the header or secret
+  // is missing would let anyone mark an unpaid fare as fulfilled.
+  const secret = process.env.BITIKA_WEBHOOK_SECRET
+  if (!secret) {
+    console.error('BITIKA_WEBHOOK_SECRET is not set, rejecting webhook')
+    return NextResponse.json({ error: 'webhook not configured' }, { status: 500 })
+  }
+  if (!signatureHeader || !verifyBitikaSignature(rawBody, signatureHeader, secret)) {
+    return NextResponse.json({ error: 'bad signature' }, { status: 401 })
   }
 
   let payload: any
