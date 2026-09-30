@@ -17,10 +17,10 @@ export default function HomePage() {
           <SafaripapLogo size="sm" />
           <div className="flex items-center gap-2">
             <Link
-              href="/login"
-              className="hidden sm:inline-flex min-h-[3.25rem] items-center rounded-xl px-4 text-base font-semibold text-brand-dark"
+              href="/signin"
+              className="inline-flex min-h-[3.25rem] items-center rounded-xl border-2 border-brand-dark/15 bg-white px-4 text-base font-semibold text-brand-dark"
             >
-              Conductor sign in
+              Sign in
             </Link>
             <SettingsMenu />
           </div>
