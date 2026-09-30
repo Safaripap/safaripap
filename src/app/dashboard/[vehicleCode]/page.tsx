@@ -13,6 +13,8 @@ interface Txn {
   status: string
   verified_by_conductor: boolean
   created_at: string
+  // Only present on rows returned by a full-receipt search.
+  mpesa_receipt?: string | null
 }
 
 type LoadState = 'loading' | 'notFound' | 'ready'
@@ -32,6 +34,26 @@ function statusOf(r: Txn): { label: string; tone: Tone } {
   return { label: 'Waiting…', tone: 'neutral' }
 }
 
+// Search input → uppercase letters and digits only, so "9f3 " matches "9F3".
+const normalizeQuery = (q: string) => q.toUpperCase().replace(/[^A-Z0-9]/g, '')
+
+// Endings (3 characters or fewer) are matched in the browser against what the
+// dashboard already holds. Anything longer can only be a receipt, and goes to
+// the server, which is the only place the full receipt lives.
+const SERVER_SEARCH_MIN = 4
+
+function Highlight({ text, query, suffix = false }: { text: string; query: string; suffix?: boolean }) {
+  const i = query ? (suffix ? text.toUpperCase().lastIndexOf(query) : text.toUpperCase().indexOf(query)) : -1
+  if (i < 0) return <>{text}</>
+  return (
+    <>
+      {text.slice(0, i)}
+      <mark className="bg-brand/30 text-brand-dark rounded-sm">{text.slice(i, i + query.length)}</mark>
+      {text.slice(i + query.length)}
+    </>
+  )
+}
+
 const PILL_CLASSES: Record<Tone, string> = {
   route: 'bg-route-light text-route',
   wait: 'bg-wait-light text-wait-ink',
@@ -48,6 +70,9 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
   // class is removed a frame later and the background transitions back.
   const [fresh, setFresh] = useState<Record<string, Tone>>({})
   const [announcement, setAnnouncement] = useState('')
+  const [query, setQuery] = useState('')
+  const [serverResults, setServerResults] = useState<Txn[] | null>(null)
+  const [searchError, setSearchError] = useState('')
   // Fares we've already announced, so a paid fare only alerts once even if
   // Realtime sends more updates for it (e.g. when it's verified).
   const announcedIds = useRef(new Set<string>())
@@ -133,6 +158,47 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
     }
   }, [code, router])
 
+  const q = normalizeQuery(query)
+
+  useEffect(() => {
+    setSearchError('')
+    if (q.length < SERVER_SEARCH_MIN) {
+      setServerResults(null)
+      return
+    }
+    // Wait for a pause in typing before asking the server.
+    const controller = new AbortController()
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await supabaseBrowser.auth.getSession()
+        const res = await fetch(`/api/dashboard/search?vehicle=${encodeURIComponent(code)}&q=${q}`, {
+          headers: { Authorization: `Bearer ${data.session?.access_token ?? ''}` },
+          signal: controller.signal,
+        })
+        const body = await res.json()
+        if (!res.ok) throw new Error(body.error)
+        setServerResults(body.results)
+      } catch (err: any) {
+        if (err.name === 'AbortError') return
+        setServerResults([])
+        setSearchError("Couldn't search right now. Check your connection and try again.")
+      }
+    }, 250)
+    return () => {
+      clearTimeout(t)
+      controller.abort()
+    }
+  }, [q, code])
+
+  // Rows to show: everything, endings matched locally, or the server's matches
+  // (with live status from the realtime list where we have it).
+  const visibleRows: Txn[] = !q
+    ? rows
+    : q.length < SERVER_SEARCH_MIN
+    ? rows.filter((r) => r.phone_last3.includes(q) || r.receipt_last3.toUpperCase().includes(q))
+    : (serverResults ?? []).map((m) => ({ ...(rows.find((r) => r.id === m.id) ?? m), mpesa_receipt: m.mpesa_receipt }))
+  const searchPending = q.length >= SERVER_SEARCH_MIN && serverResults === null && !searchError
+
   async function turnOnAlerts() {
     await enableFareAlerts()
     setAlertsOn(fareAlertsEnabled())
@@ -209,6 +275,47 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
       )}
 
       {loadState === 'ready' && rows.length > 0 && (
+        <div className="mb-4">
+          <label htmlFor="fare-search" className="sr-only">
+            Search fares by phone or receipt ending
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="fare-search"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Phone or receipt ending"
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              className="flex-1 min-w-0 min-h-[3.25rem] rounded-xl border-2 border-brand-dark/15 bg-white px-4 text-xl tabular-nums placeholder:text-brand-dark/60 focus:border-brand outline-none"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                className="px-4 rounded-xl border-2 border-brand-dark/15 bg-white text-lg font-semibold"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          {q && (
+            <p role="status" className="mt-2 text-base text-brand-dark/70">
+              {searchPending
+                ? 'Searching receipts…'
+                : searchError ||
+                  (visibleRows.length === 0
+                    ? /^\d{4,}$/.test(q)
+                      ? 'No receipt matches. Phones are searched by their last 3 digits only.'
+                      : `No fares match ${q}.`
+                    : `${visibleRows.length} ${visibleRows.length === 1 ? 'match' : 'matches'}`)}
+            </p>
+          )}
+        </div>
+      )}
+
+      {loadState === 'ready' && visibleRows.length > 0 && (
         <>
           <div
             aria-hidden="true"
@@ -220,10 +327,11 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
             <span className="text-right">Status</span>
           </div>
           <ul className="space-y-2">
-            {rows.map((r) => {
+            {visibleRows.map((r) => {
               const status = statusOf(r)
               const canVerify = !r.verified_by_conductor && r.status === 'fulfilled'
               const receipt = r.receipt_last3
+              const localQuery = q.length < SERVER_SEARCH_MIN ? q : ''
               const tint = fresh[r.id]
               const rowClass = `motion-row-highlight w-full text-left p-4 rounded-xl bg-white border-2 border-brand-dark/10 grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_7rem_6rem_12rem] gap-x-4 gap-y-1 items-center ${
                 tint ? `is-new-${tint}` : ''
@@ -232,15 +340,27 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
                 <>
                   <span className="font-display text-3xl font-bold tabular-nums text-brand-dark break-words">
                     <span className="sr-only">Phone ending </span>
-                    {r.phone_last3}
+                    <Highlight text={r.phone_last3} query={localQuery} />
                     <span aria-hidden="true" className="mx-2 text-brand-dark/30">/</span>
                     <span className="sr-only">, receipt ending </span>
-                    {receipt || <span className="text-brand-dark/30" aria-label="pending">—</span>}
+                    {receipt ? (
+                      <Highlight text={receipt} query={localQuery} />
+                    ) : (
+                      <span className="text-brand-dark/30" aria-label="pending">—</span>
+                    )}
                   </span>
                   <span className="col-start-1 flex flex-wrap gap-x-3 sm:contents">
                     <span className="font-body font-semibold text-lg text-brand-dark">KES {r.amount_kes}</span>
                     <span className="text-lg tabular-nums text-brand-dark/70">{formatTime(r.created_at)}</span>
                   </span>
+                  {r.mpesa_receipt && (
+                    <span className="col-start-1 sm:col-span-3 text-base text-brand-dark/70 tabular-nums break-all">
+                      Receipt{' '}
+                      <span className="font-semibold text-brand-dark">
+                        <Highlight text={r.mpesa_receipt} query={q} suffix />
+                      </span>
+                    </span>
+                  )}
                   <span className="col-start-2 row-start-1 row-span-2 sm:col-start-4 sm:row-span-1 justify-self-end">
                     <span
                       className={`inline-block rounded-full px-3 py-1 text-base font-semibold text-center ${PILL_CLASSES[status.tone]}`}

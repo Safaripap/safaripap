@@ -69,6 +69,13 @@ create policy "conductor reads own transactions" on transactions
   ));
 
 -- Conductors can mark their own fares as verified, and change nothing else.
+-- Conductors see their own fares but never the full phone number or receipt.
+revoke select on transactions from anon, authenticated;
+grant select (
+  id, vehicle_id, amount_kes, phone_last3, receipt_last3, status,
+  verified_by_conductor, verified_at, source, created_at, completed_at
+) on transactions to authenticated;
+
 revoke update on transactions from anon, authenticated;
 grant update (verified_by_conductor, verified_at) on transactions to authenticated;
 
