@@ -16,6 +16,7 @@ const config: Config = {
         wait: {
           DEFAULT: '#d98e04', // in-progress / pending — distinct from brand + route
           light: '#fbf1dc',
+          ink: '#7a4f00', // text on wait-light — DEFAULT amber is only ~2.3:1 there
         },
         cream: '#faf6ee', // warm off-white background, easier to read in bright daylight than stark white
         'accent-warm': '#E88DA0', // muted dusty rose — delight moments only, never for status

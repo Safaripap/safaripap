@@ -31,6 +31,7 @@ create table transactions (
   bitika_transaction_code text unique,
   mpesa_receipt text,
   receipt_last3 text generated always as (right(coalesce(mpesa_receipt, ''), 3)) stored,
+  receipt_last4 text generated always as (right(coalesce(mpesa_receipt, ''), 4)) stored,
   status text not null default 'processing', -- processing | processing_payment | fulfilled | failed
   verified_by_conductor boolean default false,
   verified_at timestamptz,
@@ -42,6 +43,7 @@ create table transactions (
 create index transactions_vehicle_created_idx on transactions (vehicle_id, created_at desc);
 create index transactions_phone_last3_idx on transactions (vehicle_id, phone_last3);
 create index transactions_receipt_last3_idx on transactions (vehicle_id, receipt_last3);
+create index transactions_receipt_last4_idx on transactions (vehicle_id, receipt_last4);
 
 -- Enable Realtime on transactions so the conductor dashboard gets inserts/updates live.
 -- (In the Supabase dashboard: Database -> Replication -> toggle `transactions` on,
