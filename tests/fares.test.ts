@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { formatTime, normalizeQuery, statusOf, visibleFares, type Txn } from '@/lib/fares'
+import {
+  dayKey,
+  dayOptions,
+  dayRange,
+  fetchFarePage,
+  formatTime,
+  formatWhen,
+  isLiveHead,
+  normalizeQuery,
+  PAGE_SIZE,
+  sortFares,
+  statusOf,
+  DEFAULT_VIEW,
+  type Txn,
+} from '@/lib/fares'
 
 const txn = (over: Partial<Txn> = {}): Txn => ({
   id: 'a',
@@ -41,43 +55,129 @@ describe('normalizeQuery', () => {
   })
 })
 
-describe('visibleFares', () => {
+const NOW = new Date('2026-10-05T15:00:00+03:00')
+
+describe('formatWhen', () => {
+  it('shows only the time for today', () => {
+    expect(formatWhen('2026-10-05T14:14:00+03:00', NOW)).toBe('2:14 pm')
+  })
+  it('says Yesterday for yesterday', () => {
+    expect(formatWhen('2026-10-04T08:00:00+03:00', NOW)).toBe('Yesterday, 8:00 am')
+  })
+  it('adds the date for anything older', () => {
+    expect(formatWhen('2026-09-28T19:30:00+03:00', NOW)).toBe('28 Sep, 7:30 pm')
+  })
+})
+
+describe('day filter', () => {
+  it('offers All days, Today, Yesterday and five earlier days', () => {
+    const opts = dayOptions(NOW)
+    expect(opts).toHaveLength(8)
+    expect(opts.slice(0, 3).map((o) => o.label)).toEqual(['All days', 'Today', 'Yesterday'])
+    expect(opts[1].value).toBe('2026-10-05')
+    expect(opts[7].value).toBe('2026-09-29')
+  })
+
+  it('covers exactly one local day', () => {
+    const [start, end] = dayRange('2026-10-05')
+    expect(start).toBe('2026-10-04T21:00:00.000Z') // midnight in Nairobi
+    expect(end).toBe('2026-10-05T21:00:00.000Z')
+  })
+
+  it('dayKey uses the local calendar date', () => {
+    expect(dayKey(new Date('2026-10-05T23:30:00+03:00'))).toBe('2026-10-05')
+  })
+})
+
+describe('sortFares', () => {
   const rows = [
-    txn({ id: 'a', phone_last3: '482', receipt_last3: '9F3' }),
-    txn({ id: 'b', phone_last3: '117', receipt_last3: 'K2Q' }),
-    txn({ id: 'c', phone_last3: '903', receipt_last3: 'ZZ1' }),
+    txn({ id: 'a', amount_kes: 60, created_at: '2026-10-05T08:00:00+03:00' }),
+    txn({ id: 'b', amount_kes: 100, created_at: '2026-10-05T09:00:00+03:00' }),
+    txn({ id: 'c', amount_kes: 60, created_at: '2026-10-05T10:00:00+03:00' }),
   ]
+  it('sorts by time either way', () => {
+    expect(sortFares(rows, 'newest').map((r) => r.id)).toEqual(['c', 'b', 'a'])
+    expect(sortFares(rows, 'oldest').map((r) => r.id)).toEqual(['a', 'b', 'c'])
+  })
+  it('sorts by fare, newest first among equal fares', () => {
+    expect(sortFares(rows, 'fare_desc').map((r) => r.id)).toEqual(['b', 'c', 'a'])
+    expect(sortFares(rows, 'fare_asc').map((r) => r.id)).toEqual(['c', 'a', 'b'])
+  })
+  it('does not mutate the input', () => {
+    sortFares(rows, 'oldest')
+    expect(rows.map((r) => r.id)).toEqual(['a', 'b', 'c'])
+  })
+})
 
-  it('shows everything with no query', () => {
-    expect(visibleFares(rows, '', null)).toHaveLength(3)
+describe('isLiveHead', () => {
+  it('is true only on page 1, newest first, unfiltered or today', () => {
+    expect(isLiveHead(DEFAULT_VIEW, NOW)).toBe(true)
+    expect(isLiveHead({ ...DEFAULT_VIEW, day: '2026-10-05' }, NOW)).toBe(true)
+    expect(isLiveHead({ ...DEFAULT_VIEW, page: 1 }, NOW)).toBe(false)
+    expect(isLiveHead({ ...DEFAULT_VIEW, sort: 'fare_desc' }, NOW)).toBe(false)
+    expect(isLiveHead({ ...DEFAULT_VIEW, day: '2026-10-04' }, NOW)).toBe(false)
+    expect(isLiveHead({ ...DEFAULT_VIEW, q: '48' }, NOW)).toBe(false)
+  })
+})
+
+describe('fetchFarePage', () => {
+  // Records every query-builder call so we can check what gets asked for.
+  function fakeClient(result = { data: [txn()], count: 41, error: null }) {
+    const calls: [string, ...unknown[]][] = []
+    const q: any = new Proxy(
+      {},
+      {
+        get: (_, method: string) =>
+          method === 'then'
+            ? undefined
+            : (...args: unknown[]) => {
+                calls.push([method, ...args])
+                return method === 'range' ? Promise.resolve(result) : q
+              },
+      }
+    )
+    return { client: { from: (t: string) => (calls.push(['from', t]), q) }, calls }
+  }
+
+  it('asks for one page of the short columns with a total count', async () => {
+    const { client, calls } = fakeClient()
+    const res = await fetchFarePage(client, 'veh-1', { ...DEFAULT_VIEW, page: 2 })
+    expect(res).toMatchObject({ total: 41 })
+    const select = calls.find((c) => c[0] === 'select')!
+    expect(select[1]).not.toContain('payer_phone')
+    expect(select[1]).not.toContain('mpesa_receipt')
+    expect(select[2]).toEqual({ count: 'exact' })
+    expect(calls).toContainEqual(['range', 2 * PAGE_SIZE, 3 * PAGE_SIZE - 1])
+    expect(calls).toContainEqual(['order', 'created_at', { ascending: false }])
   })
 
-  it('matches phone endings locally', () => {
-    expect(visibleFares(rows, '482', null).map((r) => r.id)).toEqual(['a'])
+  it('filters to one day', async () => {
+    const { client, calls } = fakeClient()
+    await fetchFarePage(client, 'veh-1', { ...DEFAULT_VIEW, day: '2026-10-05' })
+    expect(calls).toContainEqual(['gte', 'created_at', '2026-10-04T21:00:00.000Z'])
+    expect(calls).toContainEqual(['lt', 'created_at', '2026-10-05T21:00:00.000Z'])
   })
 
-  it('matches receipt endings locally, case-insensitively', () => {
-    expect(visibleFares(rows, 'K2', null).map((r) => r.id)).toEqual(['b'])
+  it('sorts by fare with newest as the tiebreak', async () => {
+    const { client, calls } = fakeClient()
+    await fetchFarePage(client, 'veh-1', { ...DEFAULT_VIEW, sort: 'fare_asc' })
+    const orders = calls.filter((c) => c[0] === 'order')
+    expect(orders).toEqual([
+      ['order', 'amount_kes', { ascending: true }],
+      ['order', 'created_at', { ascending: false }],
+    ])
   })
 
-  it('matches partial endings across both fields', () => {
-    expect(visibleFares(rows, '9', null).map((r) => r.id)).toEqual(['a', 'c'])
+  it('matches endings on either field', async () => {
+    const { client, calls } = fakeClient()
+    await fetchFarePage(client, 'veh-1', { ...DEFAULT_VIEW, q: '48' })
+    expect(calls).toContainEqual(['or', 'phone_last3.ilike.%48%,receipt_last3.ilike.%48%'])
   })
 
-  it('shows nothing locally for 4+ characters until the server answers', () => {
-    expect(visibleFares(rows, 'SJK49F3', null)).toEqual([])
-  })
-
-  it('uses server matches for 4+ characters, keeping live status from the list', () => {
-    const live = [txn({ id: 'a', verified_by_conductor: true })]
-    const server = [txn({ id: 'a', verified_by_conductor: false, mpesa_receipt: 'SJK4H7X9F3' })]
-    const [row] = visibleFares(live, 'X9F3', server)
-    expect(row.verified_by_conductor).toBe(true)
-    expect(row.mpesa_receipt).toBe('SJK4H7X9F3')
-  })
-
-  it('includes server matches that are older than the loaded list', () => {
-    const server = [txn({ id: 'old', mpesa_receipt: 'AAA1111XYZ' })]
-    expect(visibleFares(rows, '1XYZ', server).map((r) => r.id)).toEqual(['old'])
+  it('returns no rows and passes the error through on failure', async () => {
+    const { client } = fakeClient({ data: null as any, count: null as any, error: { message: 'boom' } as any })
+    const res = await fetchFarePage(client, 'veh-1', DEFAULT_VIEW)
+    expect(res.rows).toEqual([])
+    expect(res.error).toBeTruthy()
   })
 })
