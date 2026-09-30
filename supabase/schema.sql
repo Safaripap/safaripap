@@ -19,6 +19,7 @@ create table vehicles (
   lnbits_invoice_key text not null,         -- read-only key, used for status checks
   lightning_address text not null,          -- passed to Bitika as `lightningAddress`
   conductor_user_id uuid references auth.users(id), -- Supabase Auth login for this vehicle's conductor
+  is_demo boolean not null default false,   -- placeholder matatu from /admin/demo; never payable
   created_at timestamptz default now()
 );
 
@@ -36,12 +37,14 @@ create table transactions (
   verified_at timestamptz,
   source text not null,                     -- 'pwa' | 'ussd'
   created_at timestamptz default now(),
-  completed_at timestamptz
+  completed_at timestamptz,
+  is_demo boolean not null default false    -- generated demo fare
 );
 
 create index transactions_vehicle_created_idx on transactions (vehicle_id, created_at desc);
 create index transactions_phone_last3_idx on transactions (vehicle_id, phone_last3);
 create index transactions_receipt_last3_idx on transactions (vehicle_id, receipt_last3);
+create index transactions_demo_idx on transactions (vehicle_id) where is_demo;
 
 -- Enable Realtime on transactions so the conductor dashboard gets inserts/updates live.
 -- (In the Supabase dashboard: Database -> Replication -> toggle `transactions` on,

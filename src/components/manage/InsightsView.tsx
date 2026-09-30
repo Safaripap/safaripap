@@ -21,8 +21,16 @@ export function InsightsView({
   const change = changeRatio(insights.totals.kes, insights.previous.kes)
   const periodWord = days === 1 ? 'the day before' : `the previous ${days} days`
 
+  const demoCount = insights.byVehicle.filter((v) => v.demo).length
+
   return (
     <div aria-busy={loading} className={`transition-opacity duration-200 ${loading ? 'opacity-60' : ''}`}>
+      {demoCount > 0 && (
+        <p className="mb-6 rounded-xl border-2 border-brand-dark/10 bg-white p-4 text-brand-dark">
+          Includes {demoCount === 1 ? 'a demo matatu' : `${demoCount} demo matatus`} with generated fares, marked{' '}
+          <strong>Demo</strong>, to show how the dashboard looks with a full sacco.
+        </p>
+      )}
       <section aria-labelledby="total-heading" className="mb-10">
         <h2 id="total-heading" className="text-lg text-brand-dark/70">
           Collected {formatRange(insights.from, insights.to)}

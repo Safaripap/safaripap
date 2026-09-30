@@ -27,6 +27,10 @@ export async function POST(req: NextRequest) {
   if (error || !vehicle) {
     return NextResponse.json({ error: 'Unknown vehicle code' }, { status: 404 })
   }
+  // Demo matatus exist only to fill the sacco dashboard; they can't be paid.
+  if (vehicle.is_demo) {
+    return NextResponse.json({ error: 'This is a demo matatu and can’t take payments' }, { status: 404 })
+  }
 
   const idempotencyKey = randomUUID()
 

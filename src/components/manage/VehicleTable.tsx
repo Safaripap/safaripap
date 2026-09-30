@@ -30,6 +30,7 @@ export function VehicleTable({ vehicles, onPick }: { vehicles: VehicleInsight[];
                 >
                   {v.code}
                 </button>
+                {v.demo && <DemoTag />}
               </th>
               <td className="px-3 py-2 sm:px-4 text-right font-semibold tabular-nums whitespace-nowrap">{formatKes(v.kes)}</td>
               <td className="hidden px-3 py-2 sm:px-4 text-right tabular-nums sm:table-cell">{v.fares}</td>
@@ -58,5 +59,14 @@ export function VehicleTable({ vehicles, onPick }: { vehicles: VehicleInsight[];
         </tbody>
       </table>
     </div>
+  )
+}
+
+// Marks placeholder matatus whose fares were generated for the demo.
+export function DemoTag() {
+  return (
+    <span className="ml-1 inline-block rounded-full bg-brand-dark/5 px-2 py-0.5 align-middle text-xs font-semibold text-brand-dark/70">
+      Demo
+    </span>
   )
 }

@@ -24,7 +24,7 @@ export interface Member {
   phone: string
   saccoId: string
   saccoName: string
-  vehicles: { id: string; vehicle_code: string }[]
+  vehicles: { id: string; vehicle_code: string; is_demo: boolean }[]
 }
 
 export function validateMemberInput(input: MemberInput): string | null {
@@ -126,19 +126,20 @@ export async function getMember(supabase: SupabaseClient, userId: string): Promi
     .maybeSingle()
   if (!m) return null
 
-  let vehicles: { id: string; vehicle_code: string }[] = []
+  // select('*') rather than naming is_demo, so this keeps working on a
+  // database that hasn't had the demo-data migration yet. Only id, code and
+  // the demo flag leave this function — never the wallet keys.
+  const shape = (v: any) => ({ id: v.id, vehicle_code: v.vehicle_code, is_demo: !!v.is_demo })
+  let vehicles: { id: string; vehicle_code: string; is_demo: boolean }[] = []
   if (m.role === 'manager') {
-    const { data } = await supabase.from('vehicles').select('id, vehicle_code').eq('sacco_id', m.sacco_id).order('vehicle_code')
-    vehicles = data ?? []
+    const { data } = await supabase.from('vehicles').select('*').eq('sacco_id', m.sacco_id).order('vehicle_code')
+    vehicles = (data ?? []).map(shape)
   } else {
-    const { data } = await supabase
-      .from('vehicle_owners')
-      .select('vehicles(id, vehicle_code, sacco_id)')
-      .eq('user_id', userId)
+    const { data } = await supabase.from('vehicle_owners').select('vehicles(*)').eq('user_id', userId)
     vehicles = (data ?? [])
       .map((r: any) => r.vehicles)
       .filter((v: any) => v && v.sacco_id === m.sacco_id)
-      .map((v: any) => ({ id: v.id, vehicle_code: v.vehicle_code }))
+      .map(shape)
       .sort((a, b) => a.vehicle_code.localeCompare(b.vehicle_code))
   }
 

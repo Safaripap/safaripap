@@ -17,6 +17,7 @@ export interface FareRow {
 export interface VehicleRef {
   id: string
   vehicle_code: string
+  is_demo?: boolean
 }
 
 export interface DayTotal {
@@ -28,6 +29,7 @@ export interface DayTotal {
 export interface VehicleInsight {
   vehicleId: string
   code: string
+  demo: boolean // placeholder matatu with generated fares
   kes: number
   fares: number
   avgKes: number
@@ -94,7 +96,7 @@ export function aggregate(rows: FareRow[], vehicles: VehicleRef[], from: string,
 
   const daily = days.map((date) => ({ date, kes: 0, fares: 0 }))
   const perVehicle = new Map(
-    vehicles.map((v) => [v.id, { code: v.vehicle_code, kes: 0, fares: 0, daily: days.map(() => 0), dailyFares: days.map(() => 0) }])
+    vehicles.map((v) => [v.id, { code: v.vehicle_code, demo: !!v.is_demo, kes: 0, fares: 0, daily: days.map(() => 0), dailyFares: days.map(() => 0) }])
   )
   let prevKes = 0
   let prevFares = 0
@@ -129,6 +131,7 @@ export function aggregate(rows: FareRow[], vehicles: VehicleRef[], from: string,
       return {
         vehicleId,
         code: v.code,
+        demo: v.demo,
         kes: v.kes,
         fares: v.fares,
         avgKes: v.fares ? Math.round(v.kes / v.fares) : 0,

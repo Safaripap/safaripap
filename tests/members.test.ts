@@ -159,7 +159,7 @@ describe('getMember', () => {
       ],
     })
     const m = await getMember(supabase, 'o-1')
-    expect(m?.vehicles).toEqual([{ id: 'v-2', vehicle_code: 'KAC456D' }])
+    expect(m?.vehicles).toEqual([{ id: 'v-2', vehicle_code: 'KAC456D', is_demo: false }])
   })
 
   it('returns null for someone who is not a sacco member', async () => {

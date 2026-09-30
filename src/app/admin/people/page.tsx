@@ -10,7 +10,7 @@ import { formatLocalKenyanNumber, isValidKenyanMobile, toLocalKenyanNumber } fro
 interface Sacco {
   id: string
   name: string
-  vehicles: { id: string; vehicleCode: string }[]
+  vehicles: { id: string; vehicleCode: string; isDemo?: boolean }[]
 }
 
 interface Member {
@@ -267,6 +267,7 @@ function People({ lock }: { lock: () => void }) {
                         className="h-5 w-5 accent-brand-dark"
                       />
                       <span className="font-display font-bold tabular-nums">{v.vehicleCode}</span>
+                      {v.isDemo && <span className="text-sm text-brand-dark/70">Demo</span>}
                     </label>
                   </li>
                 ))}
