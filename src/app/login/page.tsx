@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 import { conductorEmail, PIN_LENGTH } from '@/lib/conductor'
@@ -74,6 +75,12 @@ export default function LoginPage() {
         >
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
+        <p className="mt-6 text-center text-brand-dark/70">
+          Sacco manager or owner?{' '}
+          <Link href="/manage/login" className="font-semibold text-brand-dark underline underline-offset-4">
+            Sign in with your phone
+          </Link>
+        </p>
       </form>
     </main>
   )

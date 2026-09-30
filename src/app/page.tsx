@@ -157,6 +157,12 @@ export default function HomePage() {
               >
                 Conductor sign in
               </Link>
+              <Link
+                href="/manage/login"
+                className="inline-flex min-h-[3.5rem] items-center rounded-2xl border-2 border-cream/40 px-6 font-display text-xl font-bold text-cream"
+              >
+                Sacco sign in
+              </Link>
             </div>
           </div>
           <Image
@@ -182,6 +188,7 @@ export default function HomePage() {
                 { href: '/pay', label: 'Pay a fare' },
                 { href: '#how', label: 'How it works' },
                 { href: '/login', label: 'Conductor sign in' },
+                { href: '/manage/login', label: 'Sacco sign in' },
               ].map((l) => (
                 <li key={l.href}>
                   <Link

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { AppHeader } from '@/components/AppHeader'
+import { AdminNav } from '@/components/AdminNav'
 import { SafaripapLogo } from '@/components/SafaripapLogo'
 import { STEPS, type StepId } from '@/lib/onboarding-steps'
 
@@ -184,6 +185,7 @@ export default function OnboardPage() {
     <main className="min-h-screen p-4 pb-16 sm:p-8">
       <div className="mx-auto max-w-3xl">
         <AppHeader />
+        {phase !== 'checking' && phase !== 'locked' && <AdminNav active="onboard" />}
 
         {phase === 'checking' && <p role="status" className="text-brand-dark/70">Loading…</p>}
 
