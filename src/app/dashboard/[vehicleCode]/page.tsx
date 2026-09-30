@@ -10,7 +10,6 @@ interface Txn {
   amount_kes: number
   phone_last3: string
   receipt_last3: string
-  receipt_last4?: string | null
   status: string
   verified_by_conductor: boolean
   created_at: string
@@ -19,13 +18,8 @@ interface Txn {
 type LoadState = 'loading' | 'notFound' | 'ready'
 type Tone = 'route' | 'wait' | 'neutral'
 
-// Only the short endings ever reach the browser — never payer_phone or the
-// full mpesa_receipt. receipt_last4 comes from the 20260930 migration; until
-// that's applied we fall back to the columns that already exist.
+// Only the short endings reach the browser — never payer_phone.
 const TXN_COLUMNS = 'id, amount_kes, phone_last3, receipt_last3, status, verified_by_conductor, created_at'
-const TXN_COLUMNS_WITH_LAST4 = `${TXN_COLUMNS}, receipt_last4`
-
-const receiptEnding = (r: Txn) => r.receipt_last4 || r.receipt_last3 || ''
 
 // 12-hour clock, lowercase am/pm: "2:14 pm".
 const formatTime = (iso: string) =>
@@ -89,16 +83,13 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
       }
       vehicleId = vehicle.id
 
-      const fetchTxns = (columns: string) =>
-        supabaseBrowser
-          .from('transactions')
-          .select(columns)
-          .eq('vehicle_id', vehicleId)
-          .order('created_at', { ascending: false })
-          .limit(50)
-          .returns<Txn[]>()
-      let { data: initial, error } = await fetchTxns(TXN_COLUMNS_WITH_LAST4)
-      if (error) ({ data: initial } = await fetchTxns(TXN_COLUMNS))
+      const { data: initial } = await supabaseBrowser
+        .from('transactions')
+        .select(TXN_COLUMNS)
+        .eq('vehicle_id', vehicleId)
+        .order('created_at', { ascending: false })
+        .limit(50)
+        .returns<Txn[]>()
       setRows(initial ?? [])
       for (const r of initial ?? []) if (r.status === 'fulfilled') announcedIds.current.add(r.id)
       setLoadState('ready')
@@ -232,7 +223,7 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
             {rows.map((r) => {
               const status = statusOf(r)
               const canVerify = !r.verified_by_conductor && r.status === 'fulfilled'
-              const receipt = receiptEnding(r)
+              const receipt = r.receipt_last3
               const tint = fresh[r.id]
               const rowClass = `motion-row-highlight w-full text-left p-4 rounded-xl bg-white border-2 border-brand-dark/10 grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_7rem_6rem_12rem] gap-x-4 gap-y-1 items-center ${
                 tint ? `is-new-${tint}` : ''

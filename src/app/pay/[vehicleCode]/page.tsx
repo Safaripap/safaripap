@@ -19,9 +19,6 @@ export default function PayPage({ params }: { params: { vehicleCode: string } })
   const [errorMsg, setErrorMsg] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const code = params.vehicleCode.toUpperCase()
-  // Last 4 of the receipt, not 3: with dozens of fares per vehicle per day,
-  // 3 characters has a real chance of two receipts sharing an ending.
-  const receiptEnding = receipt?.mpesa_receipt ? receipt.mpesa_receipt.slice(-4) : receipt?.receipt_last3
 
   useEffect(() => {
     fetch(`/api/vehicles/${params.vehicleCode}`)
@@ -165,7 +162,7 @@ export default function PayPage({ params }: { params: { vehicleCode: string } })
                   <p className="text-lg text-brand-dark">
                     Tell the conductor: phone ending{' '}
                     <strong className="font-display tabular-nums">{receipt?.phone_last3}</strong>, receipt ending{' '}
-                    <strong className="font-display tabular-nums">{receiptEnding}</strong>
+                    <strong className="font-display tabular-nums">{receipt?.receipt_last3}</strong>
                   </p>
                 </div>
               </div>
