@@ -19,6 +19,9 @@ export default function PayPage({ params }: { params: { vehicleCode: string } })
   const [errorMsg, setErrorMsg] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const code = params.vehicleCode.toUpperCase()
+  // Last 4 of the receipt, not 3: with dozens of fares per vehicle per day,
+  // 3 characters has a real chance of two receipts sharing an ending.
+  const receiptEnding = receipt?.mpesa_receipt ? receipt.mpesa_receipt.slice(-4) : receipt?.receipt_last3
 
   useEffect(() => {
     fetch(`/api/vehicles/${params.vehicleCode}`)
@@ -151,23 +154,18 @@ export default function PayPage({ params }: { params: { vehicleCode: string } })
           )}
 
           {screen === 'success' && (
-            <motion.div key="success" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm text-center">
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', stiffness: 200, damping: 12 }}
-                className="w-20 h-20 bg-route rounded-full flex items-center justify-center mx-auto mb-6 text-white text-4xl"
-              >
-                ✓
-              </motion.div>
-              <div className="ticket-stub">
-                <p className="text-sm uppercase tracking-widest text-brand-dark/40 mb-1">Paid</p>
-                <p className="font-display text-display-sm mb-4">KES {amount}</p>
-                <div className="border-t border-dashed border-brand-dark/15 pt-4 text-left space-y-1">
-                  <p className="text-brand-dark/70">Receipt <span className="font-semibold text-brand-dark">{receipt?.mpesa_receipt}</span></p>
+            <motion.div key="success" className="w-full max-w-sm text-center">
+              <SuccessCheck />
+              <div className="ticket-stub motion-fade-up">
+                <h1 className="font-display text-display-sm mb-4">KES {amount} paid</h1>
+                <div className="border-t border-dashed border-brand-dark/15 pt-4 text-left space-y-2">
                   <p className="text-brand-dark/70">
-                    Show the conductor: <span className="font-semibold text-brand-dark">…{receipt?.phone_last3}</span> or{' '}
-                    <span className="font-semibold text-brand-dark">…{receipt?.receipt_last3}</span>
+                    Receipt <span className="font-semibold text-brand-dark tabular-nums">{receipt?.mpesa_receipt}</span>
+                  </p>
+                  <p className="text-lg text-brand-dark">
+                    Tell the conductor: phone ending{' '}
+                    <strong className="font-display tabular-nums">{receipt?.phone_last3}</strong>, receipt ending{' '}
+                    <strong className="font-display tabular-nums">{receiptEnding}</strong>
                   </p>
                 </div>
               </div>
@@ -186,5 +184,45 @@ export default function PayPage({ params }: { params: { vehicleCode: string } })
         </AnimatePresence>
       </div>
     </main>
+  )
+}
+
+// The instant a passenger knows their money is safe. The check draws itself,
+// a route-green glow settles behind it, and the phone buzzes once as the
+// stroke completes. Reduced-motion users get the finished state immediately.
+function SuccessCheck() {
+  useEffect(() => {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const t = setTimeout(() => {
+      if ('vibrate' in navigator) navigator.vibrate(80)
+    }, reduce ? 0 : 450)
+    return () => clearTimeout(t)
+  }, [])
+
+  const [animate] = useState(
+    () => typeof window !== 'undefined' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
+
+  return (
+    <div className="relative w-20 h-20 mx-auto mb-8">
+      <div
+        aria-hidden="true"
+        className={`absolute -inset-6 rounded-full ${animate ? 'motion-glow' : ''}`}
+        style={{ background: 'radial-gradient(circle, rgba(30, 122, 95, 0.3) 0%, rgba(30, 122, 95, 0) 70%)' }}
+      />
+      <div className="relative w-20 h-20 bg-route rounded-full flex items-center justify-center">
+        <svg viewBox="0 0 24 24" className="w-11 h-11" fill="none" aria-hidden="true">
+          <path
+            d="M5 12.5l4.5 4.5L19 7.5"
+            pathLength={1}
+            stroke="white"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={animate ? 'motion-check-draw' : ''}
+          />
+        </svg>
+      </div>
+    </div>
   )
 }
