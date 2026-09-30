@@ -4,7 +4,8 @@
 
 import 'dotenv/config'
 import { createClient } from '@supabase/supabase-js'
-import { conductorEmail, PIN_LENGTH } from '../src/lib/conductor'
+import { PIN_LENGTH } from '../src/lib/conductor'
+import { createConductorLogin } from '../src/lib/onboarding'
 
 async function main() {
   const [vehicleCodeArg, pin] = process.argv.slice(2)
@@ -23,28 +24,8 @@ async function main() {
     .single()
   if (vehicleError || !vehicle) throw new Error(`Vehicle ${vehicleCode} not found`)
 
-  let userId = vehicle.conductor_user_id as string | null
-  if (userId) {
-    const { error } = await supabase.auth.admin.updateUserById(userId, { password: pin })
-    if (error) throw error
-    console.log(`Reset PIN for ${vehicleCode}.`)
-  } else {
-    const { data, error } = await supabase.auth.admin.createUser({
-      email: conductorEmail(vehicleCode),
-      password: pin,
-      email_confirm: true,
-      user_metadata: { vehicle_code: vehicleCode },
-    })
-    if (error) throw error
-    userId = data.user.id
-
-    const { error: linkError } = await supabase
-      .from('vehicles')
-      .update({ conductor_user_id: userId })
-      .eq('id', vehicle.id)
-    if (linkError) throw linkError
-    console.log(`Created conductor login for ${vehicleCode}.`)
-  }
+  const { created } = await createConductorLogin(supabase, vehicle, vehicleCode, pin)
+  console.log(created ? `Created conductor login for ${vehicleCode}.` : `Reset PIN for ${vehicleCode}.`)
 }
 
 main().catch((err) => {
