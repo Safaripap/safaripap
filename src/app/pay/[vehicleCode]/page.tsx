@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ConductorNav } from '@/components/ConductorNav'
-import { SafaripapLogo } from '@/components/SafaripapLogo'
-import { SettingsMenu } from '@/components/SettingsMenu'
+import { AppHeader } from '@/components/AppHeader'
+import { formatLocalKenyanNumber, isValidKenyanMobile, toLocalKenyanNumber } from '@/lib/phone'
 
 type Screen = 'loading' | 'notFound' | 'amount' | 'phone' | 'waiting' | 'success' | 'error'
 
@@ -25,6 +25,7 @@ export default function PayPage({
   const fromConductor = searchParams.from === 'conductor'
   const [screen, setScreen] = useState<Screen>('loading')
   const [amount, setAmount] = useState<number | ''>('')
+  // The 9 digits after +254, e.g. "712345678".
   const [phone, setPhone] = useState('')
   const [transactionCode, setTransactionCode] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<{ mpesa_receipt: string; phone_last3: string; receipt_last3: string } | null>(null)
@@ -34,9 +35,11 @@ export default function PayPage({
   // heading takes focus, so VoiceOver/TalkBack users hear where they are
   // instead of being left on content that has gone.
   const navigated = useRef(false)
-  const focusHeading = (el: HTMLHeadingElement | null) => {
+  // Stable identity matters: React re-runs a ref callback whenever it's a new
+  // function, which would steal focus back from the input on every keystroke.
+  const focusHeading = useCallback((el: HTMLHeadingElement | null) => {
     if (el && navigated.current) el.focus()
-  }
+  }, [])
   function goTo(next: Screen) {
     navigated.current = true
     setScreen(next)
@@ -65,7 +68,7 @@ export default function PayPage({
       const res = await fetch('/api/pay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vehicleCode: params.vehicleCode, amountKes: amount, phone }),
+        body: JSON.stringify({ vehicleCode: params.vehicleCode, amountKes: amount, phone: `254${phone}` }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Payment failed to start')
@@ -94,13 +97,7 @@ export default function PayPage({
 
   return (
     <main className={`min-h-screen flex flex-col px-6 pt-8 ${fromConductor ? 'pb-32' : 'pb-10'}`}>
-      <header className="mb-8 flex items-center justify-between gap-4">
-        <SafaripapLogo size="sm" />
-        <div className="flex items-center gap-2">
-          {screen !== 'loading' && screen !== 'notFound' && <span className="route-plate">{code}</span>}
-          <SettingsMenu />
-        </div>
-      </header>
+      <AppHeader plate={screen !== 'loading' && screen !== 'notFound' ? code : null} />
 
       <div className="flex-1 flex flex-col items-center justify-center">
         <AnimatePresence mode="wait">
@@ -147,18 +144,30 @@ export default function PayPage({
             <motion.div key="phone" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full max-w-sm">
               <h1 ref={focusHeading} tabIndex={-1} className="focus:outline-none font-display text-display-sm mb-1">Your M-Pesa number</h1>
               <p className="text-lg text-brand-dark/60 mb-8">We'll send an STK prompt to this number.</p>
-              <label htmlFor="phone" className="sr-only">M-Pesa phone number</label>
-              <input
-                id="phone"
-                type="tel"
-                inputMode="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="2547XXXXXXXX"
-                className="w-full text-3xl text-center bg-transparent border-b-4 border-brand-dark/15 py-4 mb-8 focus:border-brand outline-none"
-              />
+              <label htmlFor="phone" className="sr-only">M-Pesa phone number, after the +254 country code</label>
+              <div className="flex items-stretch gap-3 border-b-4 border-brand-dark/15 focus-within:border-brand focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-4 focus-within:outline-route mb-3">
+                {/* Fixed country code: passengers type their number the usual way. */}
+                <span aria-hidden="true" className="flex items-center text-3xl font-semibold tabular-nums text-brand-dark/70 py-4">
+                  +254
+                </span>
+                <input
+                  id="phone"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                  value={formatLocalKenyanNumber(phone)}
+                  onChange={(e) => setPhone(toLocalKenyanNumber(e.target.value))}
+                  placeholder="712 345 678"
+                  className="flex-1 min-w-0 text-3xl tabular-nums bg-transparent py-4 outline-none focus-visible:outline-none placeholder:text-brand-dark/60"
+                />
+              </div>
+              <p className="text-base text-brand-dark/70 mb-8">
+                {phone.length === 9 && !isValidKenyanMobile(phone)
+                  ? 'That doesn’t look like a Kenyan mobile number. It should start with 7 or 1.'
+                  : <>Type it the usual way, like <span className="whitespace-nowrap">0712 345 678</span>.</>}
+              </p>
               <button
-                disabled={phone.length < 12}
+                disabled={!isValidKenyanMobile(phone)}
                 onClick={submitPay}
                 className="w-full bg-brand text-white font-display font-bold text-2xl rounded-2xl py-4 disabled:opacity-30 disabled:cursor-not-allowed"
               >

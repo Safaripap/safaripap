@@ -4,8 +4,7 @@ import { useEffect, useState } from 'react'
 import { SimplePool } from 'nostr-tools/pool'
 import type { Filter } from 'nostr-tools/filter'
 import { ConductorNav } from '@/components/ConductorNav'
-import { SafaripapLogo } from '@/components/SafaripapLogo'
-import { SettingsMenu } from '@/components/SettingsMenu'
+import { AppHeader } from '@/components/AppHeader'
 
 const RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']
 const APP_PUBKEY = process.env.NEXT_PUBLIC_NOSTR_APP_PUBKEY!
@@ -63,13 +62,7 @@ export default function SaccoPage({
 
   return (
     <main className={`min-h-screen p-6 ${vehicleCode ? 'pb-32' : 'pb-10'}`}>
-      <header className="flex items-center justify-between gap-4 mb-8">
-        <SafaripapLogo size="sm" />
-        <div className="flex items-center gap-2">
-          {vehicleCode && <span className="route-plate">{vehicleCode}</span>}
-          <SettingsMenu />
-        </div>
-      </header>
+      <AppHeader plate={vehicleCode} />
 
       <div className="flex items-baseline justify-between gap-4 mb-1">
         <h1 className="text-lg text-brand-dark/70">Today's mobile-money fares</h1>
