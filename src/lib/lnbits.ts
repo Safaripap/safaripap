@@ -40,9 +40,34 @@ async function lnbits(path: string, key: string, init: RequestInit = {}) {
   return text ? JSON.parse(text) : null
 }
 
-// A new wallet for the same LNbits account as LNBITS_ADMIN_KEY.
+// Creating a wallet is an account-level action: since LNbits 1.x a wallet's
+// admin key is refused (401 "Missing user ID or access token"). It needs
+// either an access token for the account (LNBITS_ACCESS_TOKEN, preferred) or
+// the account's user ID (LNBITS_USER_ID) — the ID of the *account*, not of a
+// wallet. The new wallet belongs to that account, alongside LNBITS_ADMIN_KEY's.
 export async function createWallet(name: string): Promise<LnbitsWallet> {
-  return lnbits('/api/v1/wallet', adminKey(), { method: 'POST', body: JSON.stringify({ name }) })
+  const token = process.env.LNBITS_ACCESS_TOKEN
+  const userId = process.env.LNBITS_USER_ID
+  if (!token && !userId) {
+    throw new Error(
+      "LNbits can't create wallets yet: set LNBITS_ACCESS_TOKEN (or LNBITS_USER_ID, your LNbits account's user ID — not a wallet ID)."
+    )
+  }
+  const path = token ? '/api/v1/wallet' : `/api/v1/wallet?usr=${encodeURIComponent(userId!)}`
+  const res = await fetch(`${host()}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ name }),
+  })
+  const text = await res.text()
+  if (!res.ok) {
+    let detail = text
+    try {
+      detail = JSON.parse(text).detail ?? text
+    } catch {}
+    throw new Error(`LNbits POST /api/v1/wallet failed (${res.status}): ${detail}`)
+  }
+  return JSON.parse(text)
 }
 
 // A static Lightning Address (username@instance) paying into `wallet`, via the
