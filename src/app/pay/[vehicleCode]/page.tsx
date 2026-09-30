@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ConductorNav } from '@/components/ConductorNav'
 import { AppHeader } from '@/components/AppHeader'
+import Link from 'next/link'
 import { formatLocalKenyanNumber, isValidKenyanMobile, toLocalKenyanNumber } from '@/lib/phone'
+import { rememberVehicle } from '@/lib/recent-vehicles'
 
 type Screen = 'loading' | 'notFound' | 'amount' | 'phone' | 'waiting' | 'success' | 'error'
 
@@ -55,6 +57,7 @@ export default function PayPage({
           return
         }
         if (v.preset_fare_kes) setAmount(v.preset_fare_kes)
+        rememberVehicle(v.vehicle_code)
         setScreen('amount')
       })
       .catch(() => setScreen('notFound'))
@@ -114,6 +117,12 @@ export default function PayPage({
               <p className="text-lg text-brand-dark/60">
                 We couldn't find a vehicle registered as {code}. Check the code with your conductor, or scan the QR sticker again.
               </p>
+              <Link
+                href="/pay"
+                className="mt-6 inline-flex min-h-[3.25rem] items-center rounded-2xl bg-brand-dark text-cream font-display font-bold text-lg px-6"
+              >
+                Enter a vehicle code
+              </Link>
             </motion.div>
           )}
 

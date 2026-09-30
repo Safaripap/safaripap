@@ -190,3 +190,10 @@ html {
     border: 2px solid #1a1a2e;
   }
 }
+
+/* A ticket stub laid over a photo: the punched notches would show the page
+   colour on top of the image, so drop them. */
+.ticket-stub.no-notch::before,
+.ticket-stub.no-notch::after {
+  display: none;
+}

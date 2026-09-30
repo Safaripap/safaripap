@@ -404,9 +404,8 @@ export default function OnboardPage() {
                   // Generated server-side by the qrcode library from our own URL.
                   dangerouslySetInnerHTML={{ __html: result.qrSvg }}
                 />
-                <div className="mt-4">
-                  <span className="route-plate">{result.vehicleCode}</span>
-                </div>
+                <p className="mt-5 text-base text-brand-dark/70">No camera? Open Safaripap, tap Pay a fare and enter</p>
+                <p className="mt-2 font-display text-5xl font-extrabold tabular-nums tracking-wide">{result.vehicleCode}</p>
                 <p className="mt-3 text-sm text-brand-dark/70 break-all">{result.payUrl}</p>
               </div>
 

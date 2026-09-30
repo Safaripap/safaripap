@@ -1,19 +1,183 @@
+import Image from 'next/image'
+import Link from 'next/link'
 import { SafaripapLogo } from '@/components/SafaripapLogo'
 import { SettingsMenu } from '@/components/SettingsMenu'
+import matatu from '../../public/images/matatu-mombasa.jpg'
+import street from '../../public/images/nairobi-street.jpg'
+import passenger from '../../public/images/passenger-phone.jpg'
 
+// Landing page — also the installed app's start screen. Passengers first:
+// the one big action is "Pay a fare". Saccos and conductors get their own
+// section below.
 export default function HomePage() {
   return (
-    <main className="relative min-h-screen flex flex-col items-center justify-center px-6 text-center">
-      <div className="absolute right-4 top-4">
-        <SettingsMenu />
+    <main className="min-h-screen">
+      <div className="mx-auto max-w-6xl px-6">
+        <header className="flex items-center justify-between gap-3 py-6">
+          <SafaripapLogo size="sm" />
+          <div className="flex items-center gap-2">
+            <Link
+              href="/login"
+              className="hidden sm:inline-flex min-h-[3.25rem] items-center rounded-xl px-4 text-base font-semibold text-brand-dark"
+            >
+              Conductor sign in
+            </Link>
+            <SettingsMenu />
+          </div>
+        </header>
+
+        {/* Hero */}
+        <section className="grid items-center gap-10 pb-16 pt-4 md:grid-cols-[1.05fr_1fr] md:pb-24 md:pt-10">
+          <div>
+            <h1 className="font-display text-display text-balance">Pay your matatu fare in seconds.</h1>
+            <p className="mt-5 max-w-xl text-xl text-brand-dark/70">
+              Use M-Pesa like you always do. Scan the QR code in the matatu or type its code, and the conductor
+              sees your fare the moment it lands.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <Link
+                href="/pay"
+                className="inline-flex min-h-[3.5rem] items-center rounded-2xl bg-brand px-8 font-display text-2xl font-bold text-white"
+              >
+                Pay a fare
+              </Link>
+              <a
+                href="#how"
+                className="inline-flex min-h-[3.5rem] items-center rounded-2xl px-5 text-lg font-semibold text-brand-dark underline decoration-2 underline-offset-4"
+              >
+                How it works
+              </a>
+            </div>
+          </div>
+
+          <div className="relative">
+            <Image
+              src={matatu}
+              alt="A colourful graffiti-painted matatu parked on a street in Mombasa, a man in a blue kanzu walking past"
+              priority
+              sizes="(min-width: 768px) 50vw, 100vw"
+              className="aspect-[4/3] w-full rounded-2xl object-cover"
+            />
+            {/* The real receipt from the pay screen, as an example. */}
+            <div
+              aria-label="Example receipt"
+              className="ticket-stub no-notch !absolute -bottom-8 left-4 right-4 sm:left-auto sm:right-6 sm:w-72 !py-5 !px-5"
+            >
+              <p className="font-display text-2xl font-bold">KES 60 paid</p>
+              <p className="mt-2 border-t border-dashed border-brand-dark/15 pt-2 text-base text-brand-dark">
+                Tell the conductor: phone ending <strong className="font-display tabular-nums">482</strong>, receipt ending{' '}
+                <strong className="font-display tabular-nums">9F3</strong>
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* How it works — passengers */}
+        <section id="how" className="scroll-mt-6 grid items-center gap-10 py-16 md:grid-cols-[1fr_1.1fr] md:py-24">
+          <Image
+            src={passenger}
+            alt="A young woman in Nairobi holding her phone"
+            sizes="(min-width: 768px) 45vw, 100vw"
+            className="order-last aspect-[4/3] w-full rounded-2xl object-cover object-[50%_35%] md:order-first"
+          />
+          <div>
+            <h2 className="font-display text-display-sm">Three steps, no cash, no change</h2>
+            <ol className="mt-8 space-y-7">
+              {[
+                {
+                  title: 'Find the matatu',
+                  body: 'Scan the QR code inside, or tap Pay a fare and type the vehicle code printed under it.',
+                },
+                {
+                  title: 'Pay with M-Pesa',
+                  body: 'Enter the fare and your number. Approve the M-Pesa prompt on your phone with your PIN, as usual.',
+                },
+                {
+                  title: 'Tell the conductor',
+                  body: 'Your phone shows a receipt. Say the endings out loud and the conductor matches them on their screen.',
+                },
+              ].map((step, i) => (
+                <li key={step.title} className="grid grid-cols-[3rem_1fr] gap-4">
+                  <span
+                    aria-hidden="true"
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-dark font-display text-xl font-bold text-cream"
+                  >
+                    {i + 1}
+                  </span>
+                  <div>
+                    <h3 className="text-xl font-semibold">{step.title}</h3>
+                    <p className="mt-1 text-lg text-brand-dark/70">{step.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <Link
+              href="/pay"
+              className="mt-10 inline-flex min-h-[3.5rem] items-center rounded-2xl bg-brand px-8 font-display text-xl font-bold text-white"
+            >
+              Pay a fare
+            </Link>
+          </div>
+        </section>
       </div>
-      <h1 className="mb-6">
-        <SafaripapLogo size="lg" />
-      </h1>
-      <p className="text-lg text-brand-dark/70 max-w-sm">
-        Scan the QR code in the vehicle, or visit <code>/pay/&lt;vehicle-code&gt;</code> to pay a fare.
-        Conductors: sign in at <code>/login</code>.
-      </p>
+
+      {/* Saccos & conductors */}
+      <section className="bg-brand-dark text-cream">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 px-6 py-16 md:grid-cols-[1.1fr_1fr] md:py-24">
+          <div>
+            <h2 className="font-display text-display-sm text-balance">For saccos and conductors</h2>
+            <p className="mt-4 text-xl text-cream/80">
+              Every fare is accounted for, the moment it’s paid.
+            </p>
+            <dl className="mt-8 space-y-6">
+              <div>
+                <dt className="text-xl font-semibold">Fares show up live on the conductor’s phone</dt>
+                <dd className="mt-1 text-lg text-cream/80">
+                  With a chime, the passenger’s phone and receipt endings, and one tap to verify. No screenshots to
+                  squint at.
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xl font-semibold">Money lands in the vehicle’s own wallet, instantly</dt>
+                <dd className="mt-1 text-lg text-cream/80">
+                  Each matatu gets its own Lightning wallet. Payments settle in seconds, not at the end of the day.
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xl font-semibold">Sacco totals you can trust</dt>
+                <dd className="mt-1 text-lg text-cream/80">
+                  A live total per vehicle, with a public receipt for every fare published to Nostr.
+                </dd>
+              </div>
+            </dl>
+            <div className="mt-10 flex flex-wrap gap-3">
+              <Link
+                href="/login"
+                className="inline-flex min-h-[3.5rem] items-center rounded-2xl bg-cream px-6 font-display text-xl font-bold text-brand-dark"
+              >
+                Conductor sign in
+              </Link>
+            </div>
+          </div>
+          <Image
+            src={street}
+            alt="Matatus and cars in traffic on a busy Nairobi street lined with shops"
+            sizes="(min-width: 768px) 45vw, 100vw"
+            className="aspect-[4/3] w-full rounded-2xl object-cover"
+          />
+        </div>
+      </section>
+
+      <footer className="mx-auto max-w-6xl px-6 py-10 text-base text-brand-dark/70">
+        <p>
+          Fares are paid with M-Pesa and settled over Bitcoin’s Lightning Network by Bitika. Built for Hack4Freedom
+          2026.
+        </p>
+        <p className="mt-2 text-sm">
+          M-Pesa is a trademark of Safaricom PLC; Safaripap is not affiliated with Safaricom. Photos from Pexels by
+          Volker Morr, JimmyJimmy and benedict buston.
+        </p>
+      </footer>
     </main>
   )
 }

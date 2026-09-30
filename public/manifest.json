@@ -1,7 +1,8 @@
 {
   "name": "Safaripap",
   "short_name": "Safaripap",
-  "start_url": "/pay",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#faf6ee",
   "theme_color": "#f7931a",
