@@ -31,6 +31,65 @@ button {
   }
 }
 
+/* Shared motion primitives — every screen pulls from these instead of
+   one-off inline animations. All ease-out, never bounce/elastic. The
+   reduced-motion rule above collapses them to their end state. */
+:root {
+  --motion-ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* strong ease-out (emil animate skill) */
+  --motion-check-duration: 450ms;
+  --motion-fade-up-duration: 280ms;
+  --motion-fade-up-delay: 150ms;
+  --motion-highlight-duration: 1.5s;
+}
+
+/* Check draw: apply to an SVG <path> with pathLength="1" so the dash
+   length is normalised regardless of the path's real geometry. */
+@keyframes check-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+.motion-check-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: check-draw var(--motion-check-duration) var(--motion-ease-out) both;
+}
+
+/* Soft glow that expands behind the success circle, then settles. */
+@keyframes glow-settle {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+.motion-glow {
+  animation: glow-settle var(--motion-check-duration) var(--motion-ease-out) both;
+}
+
+/* Fade and rise 8px into place, staggered after the check starts. */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.motion-fade-up {
+  animation: fade-up var(--motion-fade-up-duration) var(--motion-ease-out)
+    var(--motion-fade-up-delay) both;
+}
+
+/* Row highlight: a transition, not an animation, so reduced-motion skips
+   straight to the resting state. Add .is-new with a tint background on
+   entry, then remove it — the background fades back over 1.5s. */
+.motion-row-highlight {
+  transition: background-color var(--motion-highlight-duration) var(--motion-ease-out);
+}
+.motion-row-highlight.is-new-route { background-color: #e6f2ee; transition-duration: 0s; }
+.motion-row-highlight.is-new-wait { background-color: #fbf1dc; transition-duration: 0s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-check-draw,
+  .motion-glow,
+  .motion-fade-up {
+    animation: none;
+  }
+}
+
 /* Route-plate badge: the small vehicle-code marker that appears at the
    top of every screen, styled like the number board on a matatu's
    windscreen rather than a plain page heading. */

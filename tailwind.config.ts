@@ -18,6 +18,7 @@ const config: Config = {
           light: '#fbf1dc',
         },
         cream: '#faf6ee', // warm off-white background, easier to read in bright daylight than stark white
+        'accent-warm': '#E88DA0', // muted dusty rose — delight moments only, never for status
       },
       fontFamily: {
         display: ['var(--font-display)', 'sans-serif'],
