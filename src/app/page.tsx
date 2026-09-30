@@ -1,8 +1,12 @@
 import { SafaripapLogo } from '@/components/SafaripapLogo'
+import { SettingsMenu } from '@/components/SettingsMenu'
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
+    <main className="relative min-h-screen flex flex-col items-center justify-center px-6 text-center">
+      <div className="absolute right-4 top-4">
+        <SettingsMenu />
+      </div>
       <h1 className="mb-6">
         <SafaripapLogo size="lg" />
       </h1>

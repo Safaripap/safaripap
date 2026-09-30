@@ -6,6 +6,7 @@ import { supabaseBrowser } from '@/lib/supabase-browser'
 import { alertFarePaid, enableFareAlerts, fareAlertsEnabled } from '@/lib/fare-alerts'
 import { ConductorNav } from '@/components/ConductorNav'
 import { SafaripapLogo } from '@/components/SafaripapLogo'
+import { SettingsMenu } from '@/components/SettingsMenu'
 
 interface Txn {
   id: string
@@ -224,7 +225,10 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
     <main className="min-h-screen p-4 pb-32">
       <header className="mb-6 flex items-center justify-between gap-4">
         <SafaripapLogo size="sm" />
-        <span className="route-plate">{code}</span>
+        <div className="flex items-center gap-2">
+          <span className="route-plate">{code}</span>
+          <SettingsMenu alerts />
+        </div>
       </header>
 
       <div className="mb-4 flex items-baseline justify-between gap-4">
@@ -264,8 +268,8 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
 
       {loadState === 'loading' && (
         <div className="text-center py-16">
-          <div className="w-10 h-10 border-4 border-brand-dark/20 border-t-brand-dark rounded-full mx-auto mb-4 animate-spin" />
-          <p className="text-brand-dark/60">Connecting to {code}…</p>
+          <div aria-hidden="true" className="w-10 h-10 border-4 border-brand-dark/20 border-t-brand-dark rounded-full mx-auto mb-4 animate-spin" />
+          <p role="status" className="text-brand-dark/60">Connecting to {code}…</p>
         </div>
       )}
 

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ConductorNav } from '@/components/ConductorNav'
 import { SafaripapLogo } from '@/components/SafaripapLogo'
+import { SettingsMenu } from '@/components/SettingsMenu'
 
 type Screen = 'loading' | 'notFound' | 'amount' | 'phone' | 'waiting' | 'success' | 'error'
 
@@ -29,6 +30,17 @@ export default function PayPage({
   const [receipt, setReceipt] = useState<{ mpesa_receipt: string; phone_last3: string; receipt_last3: string } | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Once the passenger has moved past the first screen, each new screen's
+  // heading takes focus, so VoiceOver/TalkBack users hear where they are
+  // instead of being left on content that has gone.
+  const navigated = useRef(false)
+  const focusHeading = (el: HTMLHeadingElement | null) => {
+    if (el && navigated.current) el.focus()
+  }
+  function goTo(next: Screen) {
+    navigated.current = true
+    setScreen(next)
+  }
   const code = params.vehicleCode.toUpperCase()
 
   useEffect(() => {
@@ -48,7 +60,7 @@ export default function PayPage({
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
   async function submitPay() {
-    setScreen('waiting')
+    goTo('waiting')
     try {
       const res = await fetch('/api/pay', {
         method: 'POST',
@@ -84,21 +96,24 @@ export default function PayPage({
     <main className={`min-h-screen flex flex-col px-6 pt-8 ${fromConductor ? 'pb-32' : 'pb-10'}`}>
       <header className="mb-8 flex items-center justify-between gap-4">
         <SafaripapLogo size="sm" />
-        {screen !== 'loading' && screen !== 'notFound' && <span className="route-plate">{code}</span>}
+        <div className="flex items-center gap-2">
+          {screen !== 'loading' && screen !== 'notFound' && <span className="route-plate">{code}</span>}
+          <SettingsMenu />
+        </div>
       </header>
 
       <div className="flex-1 flex flex-col items-center justify-center">
         <AnimatePresence mode="wait">
           {screen === 'loading' && (
             <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
-              <div className="w-10 h-10 border-4 border-brand-dark/20 border-t-brand-dark rounded-full mx-auto mb-4 animate-spin" />
-              <p className="text-lg text-brand-dark/50">Finding vehicle {code}…</p>
+              <div aria-hidden="true" className="w-10 h-10 border-4 border-brand-dark/20 border-t-brand-dark rounded-full mx-auto mb-4 animate-spin" />
+              <p role="status" className="text-lg text-brand-dark/60">Finding vehicle {code}…</p>
             </motion.div>
           )}
 
           {screen === 'notFound' && (
             <motion.div key="notFound" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center max-w-sm">
-              <h1 className="font-display text-display-sm mb-2">Vehicle not found</h1>
+              <h1 ref={focusHeading} tabIndex={-1} className="focus:outline-none font-display text-display-sm mb-2">Vehicle not found</h1>
               <p className="text-lg text-brand-dark/60">
                 We couldn't find a vehicle registered as {code}. Check the code with your conductor, or scan the QR sticker again.
               </p>
@@ -107,8 +122,10 @@ export default function PayPage({
 
           {screen === 'amount' && (
             <motion.div key="amount" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full max-w-sm">
-              <p className="text-lg text-brand-dark/60 mb-4">How much is the fare?</p>
+              <h1 ref={focusHeading} tabIndex={-1} className="focus:outline-none text-lg text-brand-dark/70 mb-4">How much is the fare?</h1>
+              <label htmlFor="fare" className="sr-only">Fare in Kenyan shillings</label>
               <input
+                id="fare"
                 type="number"
                 inputMode="numeric"
                 value={amount}
@@ -118,7 +135,7 @@ export default function PayPage({
               />
               <button
                 disabled={!amount || amount < 10}
-                onClick={() => setScreen('phone')}
+                onClick={() => goTo('phone')}
                 className="w-full bg-brand text-white font-display text-2xl tracking-wide rounded-2xl py-4 disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 Continue
@@ -128,9 +145,11 @@ export default function PayPage({
 
           {screen === 'phone' && (
             <motion.div key="phone" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full max-w-sm">
-              <h1 className="font-display text-display-sm mb-1">Your M-Pesa number</h1>
+              <h1 ref={focusHeading} tabIndex={-1} className="focus:outline-none font-display text-display-sm mb-1">Your M-Pesa number</h1>
               <p className="text-lg text-brand-dark/60 mb-8">We'll send an STK prompt to this number.</p>
+              <label htmlFor="phone" className="sr-only">M-Pesa phone number</label>
               <input
+                id="phone"
                 type="tel"
                 inputMode="tel"
                 value={phone}
@@ -151,11 +170,12 @@ export default function PayPage({
           {screen === 'waiting' && (
             <motion.div key="waiting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center">
               <motion.div
+                aria-hidden="true"
                 animate={{ rotate: 360 }}
                 transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
                 className="w-16 h-16 border-4 border-wait border-t-transparent rounded-full mx-auto mb-6"
               />
-              <h1 className="font-display text-display-sm mb-2">Check your phone</h1>
+              <h1 ref={focusHeading} tabIndex={-1} className="focus:outline-none font-display text-display-sm mb-2">Check your phone</h1>
               <p className="text-lg text-brand-dark/60">Enter your M-Pesa PIN on the prompt to complete payment.</p>
             </motion.div>
           )}
@@ -164,7 +184,7 @@ export default function PayPage({
             <motion.div key="success" className="w-full max-w-sm text-center">
               <SuccessCheck />
               <div className="ticket-stub motion-fade-up">
-                <h1 className="font-display text-display-sm mb-4">KES {amount} paid</h1>
+                <h1 ref={focusHeading} tabIndex={-1} className="focus:outline-none font-display text-display-sm mb-4">KES {amount} paid</h1>
                 <div className="border-t border-dashed border-brand-dark/15 pt-4 text-left space-y-2">
                   <p className="text-brand-dark/70">
                     Receipt <span className="font-semibold text-brand-dark tabular-nums">{receipt?.mpesa_receipt}</span>
@@ -181,9 +201,9 @@ export default function PayPage({
 
           {screen === 'error' && (
             <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center max-w-sm">
-              <h1 className="font-display text-display-sm mb-2 text-red-600">Payment didn't go through</h1>
+              <h1 ref={focusHeading} tabIndex={-1} className="focus:outline-none font-display text-display-sm mb-2 text-red-700">Payment didn't go through</h1>
               <p className="text-lg text-brand-dark/60 mb-6">{errorMsg}</p>
-              <button onClick={() => setScreen('amount')} className="bg-brand-dark text-white font-display text-xl tracking-wide rounded-2xl px-8 py-3">
+              <button onClick={() => goTo('amount')} className="bg-brand-dark text-white font-display text-xl tracking-wide rounded-2xl px-8 py-3">
                 Try again
               </button>
             </motion.div>

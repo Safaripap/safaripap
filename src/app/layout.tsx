@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Big_Shoulders_Display, IBM_Plex_Sans } from 'next/font/google'
 import './globals.css'
+import { HIGH_CONTRAST_BOOT_SCRIPT } from '@/lib/preferences'
 
 // Big Shoulders Display takes its cues from Chicago transit signage —
 // a condensed, confident display face for fare amounts and headlines.
@@ -24,7 +25,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable}`}>
+    // suppressHydrationWarning: the boot script may set data-contrast before React hydrates.
+    <html lang="en" className={`${display.variable} ${body.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: HIGH_CONTRAST_BOOT_SCRIPT }} />
+      </head>
       <body className="bg-cream text-brand-dark antialiased font-body">{children}</body>
     </html>
   )
