@@ -26,8 +26,9 @@ const config: Config = {
         body: ['var(--font-body)', 'sans-serif'],
       },
       fontSize: {
-        display: ['4rem', { lineHeight: '0.95', fontWeight: '700' }],
-        'display-sm': ['2.75rem', { lineHeight: '1', fontWeight: '700' }],
+        // Sized for Montserrat, which is much wider than a condensed face.
+        display: ['3.25rem', { lineHeight: '1.05', fontWeight: '800', letterSpacing: '-0.02em' }],
+        'display-sm': ['2.125rem', { lineHeight: '1.1', fontWeight: '700', letterSpacing: '-0.02em' }],
       },
     },
   },

@@ -1,19 +1,19 @@
 import type { Metadata } from 'next'
-import { Big_Shoulders_Display, IBM_Plex_Sans } from 'next/font/google'
+import { Montserrat, Figtree } from 'next/font/google'
 import './globals.css'
 import { HIGH_CONTRAST_BOOT_SCRIPT } from '@/lib/preferences'
 
-// Big Shoulders Display takes its cues from Chicago transit signage —
-// a condensed, confident display face for fare amounts and headlines.
-// IBM Plex Sans stays legible at small sizes for everything else.
-const display = Big_Shoulders_Display({
+// Montserrat: round, geometric and confident — for fare amounts, codes and
+// headlines. Figtree: a friendly geometric sans in the same spirit that stays
+// clear at small sizes for everything else.
+const display = Montserrat({
   subsets: ['latin'],
-  weight: ['700', '800'],
+  weight: ['600', '700', '800'],
   variable: '--font-display',
 })
-const body = IBM_Plex_Sans({
+const body = Figtree({
   subsets: ['latin'],
-  weight: ['400', '500', '600'],
+  weight: ['400', '500', '600', '700'],
   variable: '--font-body',
 })
 

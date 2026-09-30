@@ -136,7 +136,7 @@ export default function PayPage({
               <button
                 disabled={!amount || amount < 10}
                 onClick={() => goTo('phone')}
-                className="w-full bg-brand text-white font-display text-2xl tracking-wide rounded-2xl py-4 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="w-full bg-brand text-white font-display font-bold text-2xl rounded-2xl py-4 disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 Continue
               </button>
@@ -160,7 +160,7 @@ export default function PayPage({
               <button
                 disabled={phone.length < 12}
                 onClick={submitPay}
-                className="w-full bg-brand text-white font-display text-2xl tracking-wide rounded-2xl py-4 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="w-full bg-brand text-white font-display font-bold text-2xl rounded-2xl py-4 disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 Pay KES {amount}
               </button>
@@ -203,7 +203,7 @@ export default function PayPage({
             <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center max-w-sm">
               <h1 ref={focusHeading} tabIndex={-1} className="focus:outline-none font-display text-display-sm mb-2 text-red-700">Payment didn't go through</h1>
               <p className="text-lg text-brand-dark/60 mb-6">{errorMsg}</p>
-              <button onClick={() => goTo('amount')} className="bg-brand-dark text-white font-display text-xl tracking-wide rounded-2xl px-8 py-3">
+              <button onClick={() => goTo('amount')} className="bg-brand-dark text-white font-display font-bold text-xl rounded-2xl px-8 py-3">
                 Try again
               </button>
             </motion.div>
