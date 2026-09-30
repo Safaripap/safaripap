@@ -17,7 +17,7 @@ const body = IBM_Plex_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'Matatu Lightning Pay',
+  title: 'Safaripap',
   description: 'Pay your matatu fare with M-Pesa, settled instantly over Lightning.',
   manifest: '/manifest.json',
 }

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 import { conductorEmail, PIN_LENGTH } from '@/lib/conductor'
+import { SafaripapLogo } from '@/components/SafaripapLogo'
 
 // Conductor sign-in: vehicle code + PIN. Accounts are created with
 // `npm run create-conductor`, there's no self sign-up.
@@ -36,6 +37,9 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-6 py-10">
       <form onSubmit={signIn} className="w-full max-w-sm">
+        <div className="mb-8">
+          <SafaripapLogo />
+        </div>
         <h1 className="text-2xl font-bold mb-1">Conductor sign in</h1>
         <p className="text-lg text-gray-500 mb-6">Enter your vehicle code and PIN.</p>
         <input

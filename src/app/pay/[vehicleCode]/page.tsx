@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { ConductorNav } from '@/components/ConductorNav'
+import { SafaripapLogo } from '@/components/SafaripapLogo'
 
 type Screen = 'loading' | 'notFound' | 'amount' | 'phone' | 'waiting' | 'success' | 'error'
 
@@ -10,7 +12,16 @@ interface Vehicle {
   preset_fare_kes: number | null
 }
 
-export default function PayPage({ params }: { params: { vehicleCode: string } }) {
+export default function PayPage({
+  params,
+  searchParams,
+}: {
+  params: { vehicleCode: string }
+  searchParams: { from?: string; sacco?: string }
+}) {
+  // Passengers arrive from the QR sticker and see no nav. A conductor who
+  // opened this from the dashboard to prompt a passenger gets the nav back.
+  const fromConductor = searchParams.from === 'conductor'
   const [screen, setScreen] = useState<Screen>('loading')
   const [amount, setAmount] = useState<number | ''>('')
   const [phone, setPhone] = useState('')
@@ -70,12 +81,11 @@ export default function PayPage({ params }: { params: { vehicleCode: string } })
   }
 
   return (
-    <main className="min-h-screen flex flex-col px-6 pt-8 pb-10">
-      {screen !== 'loading' && screen !== 'notFound' && (
-        <div className="mb-8">
-          <span className="route-plate">{code}</span>
-        </div>
-      )}
+    <main className={`min-h-screen flex flex-col px-6 pt-8 ${fromConductor ? 'pb-32' : 'pb-10'}`}>
+      <header className="mb-8 flex items-center justify-between gap-4">
+        <SafaripapLogo size="sm" />
+        {screen !== 'loading' && screen !== 'notFound' && <span className="route-plate">{code}</span>}
+      </header>
 
       <div className="flex-1 flex flex-col items-center justify-center">
         <AnimatePresence mode="wait">
@@ -180,6 +190,8 @@ export default function PayPage({ params }: { params: { vehicleCode: string } })
           )}
         </AnimatePresence>
       </div>
+
+      {fromConductor && <ConductorNav active="prompt" vehicleCode={code} saccoId={searchParams.sacco} />}
     </main>
   )
 }

@@ -1,4 +1,4 @@
-# Matatu Lightning Payments
+# Safaripap
 
 Bitcoin Lightning fare payments for Kenyan matatus, settled instantly from an ordinary M-Pesa payment — built for **Hack4Freedom** (Dada Devs hackathon), demo day October 5, 2026.
 

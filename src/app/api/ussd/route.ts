@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 
   try {
     if (parts.length === 0) {
-      response = 'CON Welcome to Matatu Pay\n1. Pay fare'
+      response = 'CON Welcome to Safaripap\n1. Pay fare'
     } else if (parts.length === 1) {
       response = 'CON Enter the vehicle code (ask your conductor)'
     } else if (parts.length === 2) {

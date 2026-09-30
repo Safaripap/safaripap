@@ -129,3 +129,8 @@ button {
 }
 .ticket-stub::before { top: -0.875rem; }
 .ticket-stub::after { bottom: -0.875rem; }
+
+/* Keep keyboard-focused elements from hiding behind the fixed bottom nav. */
+html {
+  scroll-padding-bottom: 7rem;
+}

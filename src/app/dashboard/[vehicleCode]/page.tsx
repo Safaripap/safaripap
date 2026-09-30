@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 import { alertFarePaid, enableFareAlerts, fareAlertsEnabled } from '@/lib/fare-alerts'
+import { ConductorNav } from '@/components/ConductorNav'
+import { SafaripapLogo } from '@/components/SafaripapLogo'
 
 interface Txn {
   id: string
@@ -66,6 +68,7 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [alertsOn, setAlertsOn] = useState(false)
   const [connected, setConnected] = useState(false)
+  const [saccoId, setSaccoId] = useState<string | null>(null)
   // Rows that just arrived, flashed with a tint of their status colour. The
   // class is removed a frame later and the background transitions back.
   const [fresh, setFresh] = useState<Record<string, Tone>>({})
@@ -99,7 +102,7 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
     ;(async () => {
       const { data: vehicle } = await supabaseBrowser
         .from('vehicles')
-        .select('id')
+        .select('id, sacco_id')
         .eq('vehicle_code', code)
         .single()
       if (!vehicle) {
@@ -107,6 +110,7 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
         return
       }
       vehicleId = vehicle.id
+      setSaccoId(vehicle.sacco_id)
 
       const { data: initial } = await supabaseBrowser
         .from('transactions')
@@ -217,9 +221,14 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
   }
 
   return (
-    <main className="min-h-screen p-4 pb-10">
-      <div className="mb-6 flex items-center justify-between">
+    <main className="min-h-screen p-4 pb-32">
+      <header className="mb-6 flex items-center justify-between gap-4">
+        <SafaripapLogo size="sm" />
         <span className="route-plate">{code}</span>
+      </header>
+
+      <div className="mb-4 flex items-baseline justify-between gap-4">
+        <h1 className="font-display text-display-sm">Fares</h1>
         <span
           className={`inline-flex items-center gap-2 text-sm font-medium ${
             connected ? 'text-route' : 'text-brand-dark/60'
@@ -385,6 +394,8 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
           </ul>
         </>
       )}
+
+      <ConductorNav active="fares" vehicleCode={code} saccoId={saccoId} />
     </main>
   )
 }
