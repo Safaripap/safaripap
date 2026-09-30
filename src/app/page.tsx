@@ -146,7 +146,7 @@ export default function HomePage() {
               <div>
                 <dt className="text-xl font-semibold">Sacco totals you can trust</dt>
                 <dd className="mt-1 text-lg text-cream/80">
-                  A live total per vehicle, with a public receipt for every fare published to Nostr.
+                  A live total per vehicle, and a public, signed receipt for every fare.
                 </dd>
               </div>
             </dl>
@@ -168,15 +168,40 @@ export default function HomePage() {
         </div>
       </section>
 
-      <footer className="mx-auto max-w-6xl px-6 py-10 text-base text-brand-dark/70">
-        <p>
-          Fares are paid with M-Pesa and settled over Bitcoin’s Lightning Network by Bitika. Built for Hack4Freedom
-          2026.
-        </p>
-        <p className="mt-2 text-sm">
-          M-Pesa is a trademark of Safaricom PLC; Safaripap is not affiliated with Safaricom. Photos from Pexels by
-          Volker Morr, JimmyJimmy and benedict buston.
-        </p>
+      <footer className="mx-auto max-w-6xl px-6 pb-10 pt-14">
+        <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
+          <div className="max-w-sm">
+            <SafaripapLogo size="sm" />
+            <p className="mt-3 text-lg text-brand-dark/70">
+              Matatu fares with M-Pesa, settled instantly over Bitcoin’s Lightning Network.
+            </p>
+          </div>
+          <nav aria-label="Footer">
+            <ul className="-mx-3 flex flex-wrap gap-x-2 gap-y-2 md:justify-end">
+              {[
+                { href: '/pay', label: 'Pay a fare' },
+                { href: '#how', label: 'How it works' },
+                { href: '/login', label: 'Conductor sign in' },
+              ].map((l) => (
+                <li key={l.href}>
+                  <Link
+                    href={l.href}
+                    className="inline-flex min-h-[3.25rem] items-center rounded-xl px-3 text-base font-semibold text-brand-dark underline-offset-4 hover:underline"
+                  >
+                    {l.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </div>
+        <div className="mt-10 space-y-1 border-t-2 border-brand-dark/10 pt-6 text-sm text-brand-dark/70">
+          <p>Payments by Bitika · Built for Hack4Freedom 2026</p>
+          <p>
+            M-Pesa is a trademark of Safaricom PLC; Safaripap is not affiliated with Safaricom. Photos from Pexels by
+            Volker Morr, JimmyJimmy and benedict buston.
+          </p>
+        </div>
       </footer>
     </main>
   )

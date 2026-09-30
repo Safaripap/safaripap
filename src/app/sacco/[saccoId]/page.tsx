@@ -65,7 +65,7 @@ export default function SaccoPage({
       <AppHeader plate={vehicleCode} />
 
       <div className="flex items-baseline justify-between gap-4 mb-1">
-        <h1 className="text-lg text-brand-dark/70">Today's mobile-money fares</h1>
+        <h1 className="text-lg text-brand-dark/70">Sacco fares today</h1>
         <span
           className={`inline-flex items-center gap-2 text-sm font-medium ${connected ? 'text-route' : 'text-brand-dark/60'}`}
         >
@@ -88,13 +88,11 @@ export default function SaccoPage({
         {Object.keys(byVehicle).length === 0 && (
           <div className="text-center py-12">
             <p className="text-brand-dark/60 text-lg">
-              {connected ? 'Waiting for the first fare of the day…' : 'Connecting to relays…'}
+              {connected ? 'Waiting for the first fare of the day…' : 'Connecting…'}
             </p>
           </div>
         )}
       </div>
-
-      <p className="text-sm text-brand-dark/60 mt-10">Live via Nostr — relays: {RELAYS.join(', ')}</p>
 
       {vehicleCode && <ConductorNav active="sacco" vehicleCode={vehicleCode} saccoId={params.saccoId} />}
     </main>
