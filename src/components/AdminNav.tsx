@@ -1,9 +1,10 @@
 import Link from 'next/link'
 
 // Tabs across the admin screens. Real links, current one marked.
-export function AdminNav({ active }: { active: 'onboard' | 'people' | 'demo' }) {
+export function AdminNav({ active }: { active: 'onboard' | 'stickers' | 'people' | 'demo' }) {
   const items = [
     { id: 'onboard', label: 'Onboard a matatu', href: '/admin/onboard' },
+    { id: 'stickers', label: 'Stickers', href: '/admin/stickers' },
     { id: 'people', label: 'Managers & owners', href: '/admin/people' },
     { id: 'demo', label: 'Demo data', href: '/admin/demo' },
   ] as const

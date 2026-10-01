@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import QRCode from 'qrcode'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { isAdmin } from '@/lib/admin-auth'
 import { onboardVehicle, validateOnboardInput, type OnboardInput } from '@/lib/onboarding'
+import { makeSticker, stickerOrigin } from '@/lib/sticker'
 
 // Onboards a vehicle and streams progress as newline-delimited JSON, one
 // event per line, so the admin screen can tick each step off as it happens:
@@ -24,9 +24,7 @@ export async function POST(req: NextRequest) {
   const invalid = validateOnboardInput(input)
   if (invalid) return NextResponse.json({ error: invalid }, { status: 400 })
 
-  // Where the QR sticker points. Set NEXT_PUBLIC_APP_URL once deployed so
-  // stickers printed from a laptop never point at localhost.
-  const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || req.nextUrl.origin
+  const origin = stickerOrigin(req.nextUrl.origin)
 
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
@@ -34,8 +32,7 @@ export async function POST(req: NextRequest) {
       const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'))
       try {
         const result = await onboardVehicle(supabaseAdmin, input, send)
-        const payUrl = `${origin}/pay/${result.vehicleCode}`
-        const qrSvg = await QRCode.toString(payUrl, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' })
+        const { payUrl, qrSvg } = await makeSticker(result.vehicleCode, origin)
         send({ type: 'result', ...result, payUrl, qrSvg })
       } catch {
         // onboardVehicle already sent a 'failed' event and rolled back.

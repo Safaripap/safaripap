@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { AppHeader } from '@/components/AppHeader'
 import { AdminNav } from '@/components/AdminNav'
-import { SafaripapLogo } from '@/components/SafaripapLogo'
+import { Sticker } from '@/components/Sticker'
 import { STEPS, type StepId } from '@/lib/onboarding-steps'
 
 interface Sacco {
@@ -394,22 +394,7 @@ export default function OnboardPage() {
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
-              <div id="sticker" className="ticket-stub text-center motion-fade-up">
-                <div className="flex justify-center mb-4">
-                  <SafaripapLogo />
-                </div>
-                <p className="text-xl font-semibold mb-4">Scan to pay your fare</p>
-                <div
-                  className="mx-auto w-full max-w-[16rem] [&>svg]:h-auto [&>svg]:w-full"
-                  role="img"
-                  aria-label={`QR code linking to ${result.payUrl}`}
-                  // Generated server-side by the qrcode library from our own URL.
-                  dangerouslySetInnerHTML={{ __html: result.qrSvg }}
-                />
-                <p className="mt-5 text-base text-brand-dark/70">No camera? Open Safaripap, tap Pay a fare and enter</p>
-                <p className="mt-2 font-display text-5xl font-extrabold tabular-nums tracking-wide">{result.vehicleCode}</p>
-                <p className="mt-3 text-sm text-brand-dark/70 break-all">{result.payUrl}</p>
-              </div>
+              <Sticker vehicleCode={result.vehicleCode} payUrl={result.payUrl} qrSvg={result.qrSvg} />
 
               <div className="space-y-4">
                 <div className="rounded-2xl border-2 border-brand-dark/10 bg-white p-5">
