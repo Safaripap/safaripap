@@ -3,3 +3,6 @@ node_modules
 *.tsbuildinfo
 .env*
 !.env.example
+.claude/skills/
+skills-lock.json
+plan.md

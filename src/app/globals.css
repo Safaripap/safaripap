@@ -31,6 +31,65 @@ button {
   }
 }
 
+/* Shared motion primitives — every screen pulls from these instead of
+   one-off inline animations. All ease-out, never bounce/elastic. The
+   reduced-motion rule above collapses them to their end state. */
+:root {
+  --motion-ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* strong ease-out (emil animate skill) */
+  --motion-check-duration: 450ms;
+  --motion-fade-up-duration: 280ms;
+  --motion-fade-up-delay: 150ms;
+  --motion-highlight-duration: 1.5s;
+}
+
+/* Check draw: apply to an SVG <path> with pathLength="1" so the dash
+   length is normalised regardless of the path's real geometry. */
+@keyframes check-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+.motion-check-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: check-draw var(--motion-check-duration) var(--motion-ease-out) both;
+}
+
+/* Soft glow that expands behind the success circle, then settles. */
+@keyframes glow-settle {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+.motion-glow {
+  animation: glow-settle var(--motion-check-duration) var(--motion-ease-out) both;
+}
+
+/* Fade and rise 8px into place, staggered after the check starts. */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.motion-fade-up {
+  animation: fade-up var(--motion-fade-up-duration) var(--motion-ease-out)
+    var(--motion-fade-up-delay) both;
+}
+
+/* Row highlight: a transition, not an animation, so reduced-motion skips
+   straight to the resting state. Add .is-new with a tint background on
+   entry, then remove it — the background fades back over 1.5s. */
+.motion-row-highlight {
+  transition: background-color var(--motion-highlight-duration) var(--motion-ease-out);
+}
+.motion-row-highlight.is-new-route { background-color: #e6f2ee; transition-duration: 0s; }
+.motion-row-highlight.is-new-wait { background-color: #fbf1dc; transition-duration: 0s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-check-draw,
+  .motion-glow,
+  .motion-fade-up {
+    animation: none;
+  }
+}
+
 /* Route-plate badge: the small vehicle-code marker that appears at the
    top of every screen, styled like the number board on a matatu's
    windscreen rather than a plain page heading. */
@@ -44,7 +103,7 @@ button {
   color: #faf6ee;
   font-family: var(--font-display);
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   font-size: 1.05rem;
 }
 
@@ -70,3 +129,71 @@ button {
 }
 .ticket-stub::before { top: -0.875rem; }
 .ticket-stub::after { bottom: -0.875rem; }
+
+/* Keep keyboard-focused elements from hiding behind the fixed bottom nav. */
+html {
+  scroll-padding-bottom: 7rem;
+}
+
+/* Settings switch knob: a transition, so rapid toggling retargets smoothly. */
+.switch-knob {
+  transition: transform 150ms var(--motion-ease-out);
+}
+
+/* High contrast — a manual toggle in Settings (stored per device), for
+   bright sun and low vision, independent of the OS forced-colors mode.
+   Faded ink goes to full strength, faint borders go solid, cards that
+   relied on shadow alone get a border, and focus rings thicken to 4px. */
+[data-contrast='high'] body {
+  background-color: #ffffff;
+}
+[data-contrast='high'] [class*='text-brand-dark/'] {
+  color: #1a1a2e !important;
+}
+[data-contrast='high'] ::placeholder {
+  color: #1a1a2e;
+  opacity: 0.75;
+}
+[data-contrast='high'] [class*='border-brand-dark/'] {
+  border-color: #1a1a2e !important;
+}
+[data-contrast='high'] .ticket-stub,
+[data-contrast='high'] .settings-panel {
+  border: 2px solid #1a1a2e;
+}
+[data-contrast='high'] .ticket-stub::before,
+[data-contrast='high'] .ticket-stub::after {
+  background: #ffffff;
+}
+[data-contrast='high'] :focus-visible,
+[data-contrast='high'] .peer:focus-visible ~ span {
+  outline-width: 4px !important;
+  outline-color: #1a1a2e !important;
+}
+
+/* Printing from the onboarding admin prints only the QR sticker. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #sticker,
+  #sticker * {
+    visibility: visible;
+  }
+  #sticker {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 12cm;
+    height: fit-content;
+    box-shadow: none;
+    border: 2px solid #1a1a2e;
+  }
+}
+
+/* A ticket stub laid over a photo: the punched notches would show the page
+   colour on top of the image, so drop them. */
+.ticket-stub.no-notch::before,
+.ticket-stub.no-notch::after {
+  display: none;
+}

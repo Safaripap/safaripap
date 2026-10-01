@@ -1,64 +1,115 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 import { alertFarePaid, enableFareAlerts, fareAlertsEnabled } from '@/lib/fare-alerts'
-
-interface Txn {
-  id: string
-  amount_kes: number
-  phone_last3: string
-  receipt_last3: string
-  status: string
-  verified_by_conductor: boolean
-  created_at: string
-}
+import { AppHeader } from '@/components/AppHeader'
+import { ConductorNav } from '@/components/ConductorNav'
+import { Highlight } from '@/components/Highlight'
+import {
+  DEFAULT_VIEW,
+  dayOptions,
+  fetchFarePage,
+  formatWhen,
+  isLiveHead,
+  normalizeQuery,
+  PAGE_SIZE,
+  SERVER_SEARCH_MIN,
+  SORT_OPTIONS,
+  sortFares,
+  statusOf,
+  type FareSort,
+  type FareView,
+  type Tone,
+  type Txn,
+} from '@/lib/fares'
 
 type LoadState = 'loading' | 'notFound' | 'ready'
 
+const PILL_CLASSES: Record<Tone, string> = {
+  route: 'bg-route-light text-route',
+  wait: 'bg-wait-light text-wait-ink',
+  neutral: 'bg-brand-dark/5 text-brand-dark/70',
+}
+
+const SELECT_CLASSES =
+  'w-full min-h-[3.25rem] rounded-xl border-2 border-brand-dark/15 bg-white px-3 text-lg text-brand-dark focus:border-brand outline-none'
+
 export default function DashboardPage({ params }: { params: { vehicleCode: string } }) {
+  const [vehicleId, setVehicleId] = useState<string | null>(null)
   const [rows, setRows] = useState<Txn[]>([])
+  const [total, setTotal] = useState(0)
+  const [hasAnyFares, setHasAnyFares] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [alertsOn, setAlertsOn] = useState(false)
+  const [connected, setConnected] = useState(false)
+  const [saccoId, setSaccoId] = useState<string | null>(null)
+  // Rows that just arrived, flashed with a tint of their status colour. The
+  // class is removed a frame later and the background transitions back.
+  const [fresh, setFresh] = useState<Record<string, Tone>>({})
+  const [announcement, setAnnouncement] = useState('')
+  const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<FareSort>(DEFAULT_VIEW.sort)
+  const [day, setDay] = useState(DEFAULT_VIEW.day)
+  const [page, setPage] = useState(0)
+  // New fares that arrived while the conductor was looking at another page,
+  // sort or day — offered as a "show latest" button instead of jumping.
+  const [newWhileAway, setNewWhileAway] = useState(0)
+  const [serverResults, setServerResults] = useState<Txn[] | null>(null)
+  const [searchError, setSearchError] = useState('')
+  const [fetchError, setFetchError] = useState('')
   // Fares we've already announced, so a paid fare only alerts once even if
-  // Realtime sends more updates for it (e.g. when it's verified).
+  // Realtime sends more updates for it.
   const announcedIds = useRef(new Set<string>())
-  const router = useRouter()
+  const listTopRef = useRef<HTMLDivElement>(null)
   const code = params.vehicleCode.toUpperCase()
 
+  const q = normalizeQuery(query)
+  const receiptSearch = q.length >= SERVER_SEARCH_MIN
+  const view: FareView = { sort, day, page, q: receiptSearch ? '' : q }
+  // The realtime handler is registered once, so it reads the view from a ref.
+  const viewRef = useRef(view)
+  viewRef.current = view
+  const rowsRef = useRef(rows)
+  rowsRef.current = rows
+
+  function flash(id: string, tone: Tone) {
+    setFresh((prev) => ({ ...prev, [id]: tone === 'neutral' ? 'wait' : tone }))
+    // Two frames so the tint paints before it starts fading.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() =>
+        setFresh((prev) => {
+          const { [id]: _, ...rest } = prev
+          return rest
+        })
+      )
+    )
+  }
+
+  // Vehicle lookup + realtime subscription, once per vehicle.
   useEffect(() => {
-    let vehicleId: string
     let channel: ReturnType<typeof supabaseBrowser.channel>
 
     ;(async () => {
       const { data: vehicle } = await supabaseBrowser
         .from('vehicles')
-        .select('id')
+        .select('id, sacco_id')
         .eq('vehicle_code', code)
         .single()
       if (!vehicle) {
         setLoadState('notFound')
         return
       }
-      vehicleId = vehicle.id
-
-      const { data: initial } = await supabaseBrowser
-        .from('transactions')
-        .select('*')
-        .eq('vehicle_id', vehicleId)
-        .order('created_at', { ascending: false })
-        .limit(50)
-      setRows(initial ?? [])
-      for (const r of initial ?? []) if (r.status === 'fulfilled') announcedIds.current.add(r.id)
-      setLoadState('ready')
+      setSaccoId(vehicle.sacco_id)
+      setVehicleId(vehicle.id)
 
       // React Strict Mode runs this effect twice in dev. If a channel with this
       // name is already subscribed from the previous run, remove it first —
       // Supabase reuses channels by name and throws if you .on() one that's
       // already subscribed.
-      const channelName = `txns-${vehicleId}`
+      const channelName = `txns-${vehicle.id}`
       const existing = supabaseBrowser.getChannels().find((c) => c.topic === `realtime:${channelName}`)
       if (existing) supabaseBrowser.removeChannel(existing)
 
@@ -66,39 +117,123 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
         .channel(channelName)
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'transactions', filter: `vehicle_id=eq.${vehicleId}` },
+          { event: '*', schema: 'public', table: 'transactions', filter: `vehicle_id=eq.${vehicle.id}` },
           (payload) => {
             const row = payload.new as Txn
-            setRows((prev) => {
-              const rest = prev.filter((r) => r.id !== row.id)
-              return [row, ...rest]
-            })
+            setHasAnyFares(true)
+            if (rowsRef.current.some((r) => r.id === row.id)) {
+              setRows((prev) => prev.map((r) => (r.id === row.id ? row : r)))
+            } else if (payload.eventType === 'INSERT') {
+              if (isLiveHead(viewRef.current)) {
+                setRows((prev) => [row, ...prev.filter((r) => r.id !== row.id)].slice(0, PAGE_SIZE))
+                setTotal((t) => t + 1)
+              } else {
+                setNewWhileAway((n) => n + 1)
+              }
+            }
+            setServerResults(
+              (prev) => prev && prev.map((r) => (r.id === row.id ? { ...row, mpesa_receipt: r.mpesa_receipt } : r))
+            )
+            flash(row.id, statusOf(row).tone)
             // A row is inserted when the passenger starts paying, and only
-            // becomes 'fulfilled' once the money has actually arrived.
-            if (row.status === 'fulfilled' && !announcedIds.current.has(row.id)) {
+            // becomes 'fulfilled' once the money has actually arrived. A later
+            // update that marks it verified is not a new payment.
+            if (row.status === 'fulfilled' && !row.verified_by_conductor && !announcedIds.current.has(row.id)) {
               announcedIds.current.add(row.id)
               alertFarePaid(row.amount_kes)
+              setAnnouncement(`New payment, KES ${row.amount_kes}, ending ${row.phone_last3}`)
               setToast(`Paid: KES ${row.amount_kes}`)
               setTimeout(() => setToast(null), 4000)
             }
           }
         )
-        .subscribe()
+        .subscribe((status) => setConnected(status === 'SUBSCRIBED'))
     })()
 
     return () => {
       if (channel) supabaseBrowser.removeChannel(channel)
     }
-  }, [code, router])
+  }, [code])
+
+  // One page for the current sort, day and ending search.
+  const loadPage = useCallback(async () => {
+    if (!vehicleId) return
+    setBusy(true)
+    const { rows: pageRows, total: count, error } = await fetchFarePage(supabaseBrowser, vehicleId, viewRef.current)
+    setBusy(false)
+    if (error) {
+      setFetchError("Couldn't load fares. Check your connection and try again.")
+      setLoadState('ready')
+      return
+    }
+    setFetchError('')
+    setRows(pageRows)
+    setTotal(count)
+    if (count > 0) setHasAnyFares(true)
+    for (const r of pageRows) if (r.status === 'fulfilled') announcedIds.current.add(r.id)
+    setLoadState('ready')
+  }, [vehicleId])
+
+  useEffect(() => {
+    if (!receiptSearch) loadPage()
+  }, [loadPage, sort, day, page, view.q, receiptSearch])
+
+  // Full-receipt search: 4+ characters go to the server, which is the only
+  // place the full receipt lives.
+  useEffect(() => {
+    setSearchError('')
+    if (!receiptSearch) {
+      setServerResults(null)
+      return
+    }
+    // Wait for a pause in typing before asking the server.
+    const controller = new AbortController()
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await supabaseBrowser.auth.getSession()
+        const res = await fetch(`/api/dashboard/search?vehicle=${encodeURIComponent(code)}&q=${q}`, {
+          headers: { Authorization: `Bearer ${data.session?.access_token ?? ''}` },
+          signal: controller.signal,
+        })
+        const body = await res.json()
+        if (!res.ok) throw new Error(body.error)
+        setServerResults(body.results)
+      } catch (err: any) {
+        if (err.name === 'AbortError') return
+        setServerResults([])
+        setSearchError("Couldn't search right now. Check your connection and try again.")
+      }
+    }, 250)
+    return () => {
+      clearTimeout(t)
+      controller.abort()
+    }
+  }, [q, code, receiptSearch])
+
+  const visibleRows = receiptSearch ? sortFares(serverResults ?? [], sort) : rows
+  const searchPending = receiptSearch && serverResults === null && !searchError
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const filtered = !!q || day !== 'all'
+
+  function goToPage(next: number) {
+    setPage(next)
+    listTopRef.current?.scrollIntoView({ block: 'start' })
+  }
+
+  function showLatest() {
+    const alreadyThere = isLiveHead(viewRef.current)
+    setQuery('')
+    setSort('newest')
+    setDay('all')
+    setPage(0)
+    setNewWhileAway(0)
+    // Already on the defaults: nothing above changes, so fetch explicitly.
+    if (alreadyThere) loadPage()
+  }
 
   async function turnOnAlerts() {
     await enableFareAlerts()
     setAlertsOn(fareAlertsEnabled())
-  }
-
-  async function signOut() {
-    await supabaseBrowser.auth.signOut()
-    router.replace('/login')
   }
 
   async function verify(id: string) {
@@ -108,14 +243,43 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
       .eq('id', id)
   }
 
-  const statusLabel = (r: Txn) =>
-    r.verified_by_conductor ? 'Verified' : r.status === 'fulfilled' ? 'Paid — tap to verify' : 'Waiting…'
+  const resultSummary = searchPending
+    ? 'Searching receipts…'
+    : searchError ||
+      (receiptSearch
+        ? visibleRows.length === 0
+          ? /^\d+$/.test(q)
+            ? 'No receipt matches. Phones are searched by their last 3 digits only.'
+            : `No receipt ends in ${q}.`
+          : `${visibleRows.length} ${visibleRows.length === 1 ? 'match' : 'matches'}`
+        : total === 0
+        ? q
+          ? `No fares match ${q}.`
+          : 'No fares on this day.'
+        : `${total} ${total === 1 ? 'fare' : 'fares'}`)
 
   return (
-    <main className="min-h-screen p-4 pb-10">
-      <div className="mb-6 flex items-center justify-between">
-        <span className="route-plate">{code}</span>
-        <span className="text-sm text-brand-dark/50">live fares</span>
+    <main className="min-h-screen p-4 pb-32">
+      <AppHeader plate={code} alerts />
+
+      <div className="mb-4 flex items-baseline justify-between gap-4">
+        <h1 className="font-display text-display-sm">Fares</h1>
+        <span
+          className={`inline-flex items-center gap-2 text-sm font-medium ${
+            connected ? 'text-route' : 'text-brand-dark/60'
+          }`}
+        >
+          <span
+            aria-hidden="true"
+            className={`w-2 h-2 rounded-full ${connected ? 'bg-route' : 'bg-brand-dark/30'}`}
+          />
+          {connected ? 'live' : 'connecting…'}
+        </span>
+      </div>
+
+      {/* Read out new fares for conductors using TalkBack/VoiceOver. */}
+      <div aria-live="polite" className="sr-only">
+        {announcement}
       </div>
 
       {loadState === 'ready' && !alertsOn && (
@@ -123,7 +287,7 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
           onClick={turnOnAlerts}
           className="w-full bg-brand text-white text-xl font-bold rounded-xl py-3 mb-4"
         >
-          🔔 Turn on payment alerts
+          Turn on payment alerts
         </button>
       )}
 
@@ -135,8 +299,8 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
 
       {loadState === 'loading' && (
         <div className="text-center py-16">
-          <div className="w-10 h-10 border-4 border-brand-dark/20 border-t-brand-dark rounded-full mx-auto mb-4 animate-spin" />
-          <p className="text-brand-dark/50">Connecting to {code}…</p>
+          <div aria-hidden="true" className="w-10 h-10 border-4 border-brand-dark/20 border-t-brand-dark rounded-full mx-auto mb-4 animate-spin" />
+          <p role="status" className="text-brand-dark/60">Connecting to {code}…</p>
         </div>
       )}
 
@@ -148,32 +312,198 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
         </div>
       )}
 
-      {loadState === 'ready' && (
-        <div className="space-y-2">
-          {rows.length === 0 && (
-            <div className="text-center py-16">
-              <p className="text-brand-dark/40 text-lg">No fares yet — this updates the moment a passenger pays.</p>
-            </div>
-          )}
-          {rows.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => !r.verified_by_conductor && r.status === 'fulfilled' && verify(r.id)}
-              className={`w-full text-left p-4 rounded-xl border-2 flex items-center justify-between gap-3 ${
-                r.verified_by_conductor
-                  ? 'bg-route-light border-route/40'
-                  : r.status === 'fulfilled'
-                  ? 'bg-wait-light border-wait/40'
-                  : 'bg-white border-brand-dark/10'
-              }`}
-            >
-              <span className="font-display text-3xl">KES {r.amount_kes}</span>
-              <span className="text-lg text-brand-dark/50 hidden sm:inline">…{r.phone_last3} / …{r.receipt_last3}</span>
-              <span className="text-lg font-semibold text-right">{statusLabel(r)}</span>
-            </button>
-          ))}
+      {loadState === 'ready' && !hasAnyFares && !filtered && (
+        <div className="text-center py-16">
+          <p className="text-brand-dark/60 text-lg">No fares yet — this updates the moment a passenger pays.</p>
         </div>
       )}
+
+      {loadState === 'ready' && (hasAnyFares || filtered) && (
+        <div className="mb-4 space-y-2">
+          <label htmlFor="fare-search" className="sr-only">
+            Search fares by phone or receipt ending
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="fare-search"
+              type="search"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                setPage(0)
+              }}
+              placeholder="Phone or receipt ending"
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              className="flex-1 min-w-0 min-h-[3.25rem] rounded-xl border-2 border-brand-dark/15 bg-white px-4 text-xl tabular-nums placeholder:text-brand-dark/60 focus:border-brand outline-none"
+            />
+            {query && (
+              <button
+                onClick={() => {
+                  setQuery('')
+                  setPage(0)
+                }}
+                className="px-4 rounded-xl border-2 border-brand-dark/15 bg-white text-lg font-semibold"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label htmlFor="fare-sort" className="block text-sm font-medium text-brand-dark/70 mb-1">
+                Sort
+              </label>
+              <select
+                id="fare-sort"
+                value={sort}
+                onChange={(e) => {
+                  setSort(e.target.value as FareSort)
+                  setPage(0)
+                }}
+                className={SELECT_CLASSES}
+              >
+                {SORT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="fare-day" className="block text-sm font-medium text-brand-dark/70 mb-1">
+                Day
+              </label>
+              <select
+                id="fare-day"
+                value={day}
+                onChange={(e) => {
+                  setDay(e.target.value)
+                  setPage(0)
+                }}
+                disabled={receiptSearch}
+                className={`${SELECT_CLASSES} disabled:opacity-50`}
+              >
+                {dayOptions().map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <p role="status" className="text-base text-brand-dark/70">
+            {fetchError || resultSummary}
+          </p>
+        </div>
+      )}
+
+      {newWhileAway > 0 && (
+        <button
+          onClick={showLatest}
+          className="w-full mb-4 rounded-xl border-2 border-route bg-route-light text-route text-lg font-semibold px-4"
+        >
+          {newWhileAway} new {newWhileAway === 1 ? 'fare' : 'fares'} — show latest
+        </button>
+      )}
+
+      <div ref={listTopRef} className="scroll-mt-4" />
+
+      {loadState === 'ready' && visibleRows.length > 0 && (
+        <>
+          <div
+            aria-hidden="true"
+            className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_7rem_9rem_12rem] gap-x-4 px-4 pb-2 text-sm text-brand-dark/60"
+          >
+            <span>Phone / receipt</span>
+            <span>Fare</span>
+            <span>Time</span>
+            <span className="text-right">Status</span>
+          </div>
+          <ul className={`space-y-2 ${busy ? 'opacity-60' : ''}`} aria-busy={busy}>
+            {visibleRows.map((r) => {
+              const status = statusOf(r)
+              const canVerify = !r.verified_by_conductor && r.status === 'fulfilled'
+              const receipt = r.receipt_last3
+              const localQuery = receiptSearch ? '' : q
+              const tint = fresh[r.id]
+              const rowClass = `motion-row-highlight w-full text-left p-4 rounded-xl bg-white border-2 border-brand-dark/10 grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_7rem_9rem_12rem] gap-x-4 gap-y-1 items-center ${
+                tint ? `is-new-${tint}` : ''
+              }`
+              const cells = (
+                <>
+                  <span className="font-display text-3xl font-bold tabular-nums text-brand-dark break-words">
+                    <span className="sr-only">Phone ending </span>
+                    <Highlight text={r.phone_last3} query={localQuery} />
+                    <span aria-hidden="true" className="mx-2 text-brand-dark/30">/</span>
+                    <span className="sr-only">, receipt ending </span>
+                    {receipt ? (
+                      <Highlight text={receipt} query={localQuery} />
+                    ) : (
+                      <span className="text-brand-dark/30" aria-label="pending">—</span>
+                    )}
+                  </span>
+                  <span className="col-start-1 flex flex-wrap gap-x-3 sm:contents">
+                    <span className="font-body font-semibold text-lg text-brand-dark">KES {r.amount_kes}</span>
+                    <span className="text-lg tabular-nums text-brand-dark/70">{formatWhen(r.created_at)}</span>
+                  </span>
+                  {r.mpesa_receipt && (
+                    <span className="col-start-1 sm:col-span-3 text-base text-brand-dark/70 tabular-nums break-all">
+                      Receipt{' '}
+                      <span className="font-semibold text-brand-dark">
+                        <Highlight text={r.mpesa_receipt} query={q} suffix />
+                      </span>
+                    </span>
+                  )}
+                  <span className="col-start-2 row-start-1 row-span-2 sm:col-start-4 sm:row-span-1 justify-self-end">
+                    <span
+                      className={`inline-block rounded-full px-3 py-1 text-base font-semibold text-center ${PILL_CLASSES[status.tone]}`}
+                    >
+                      {status.label}
+                    </span>
+                  </span>
+                </>
+              )
+              return (
+                <li key={r.id}>
+                  {canVerify ? (
+                    <button onClick={() => verify(r.id)} className={rowClass}>
+                      {cells}
+                    </button>
+                  ) : (
+                    <div className={rowClass}>{cells}</div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+
+          {!receiptSearch && pageCount > 1 && (
+            <nav aria-label="Fare pages" className="mt-4 flex items-center justify-between gap-2">
+              <button
+                onClick={() => goToPage(page - 1)}
+                disabled={page === 0 || busy}
+                className="px-4 rounded-xl border-2 border-brand-dark/15 bg-white text-lg font-semibold disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <span className="text-base tabular-nums text-brand-dark/70 text-center">
+                Page {page + 1} of {pageCount}
+              </span>
+              <button
+                onClick={() => goToPage(page + 1)}
+                disabled={page >= pageCount - 1 || busy}
+                className="px-4 rounded-xl border-2 border-brand-dark/15 bg-white text-lg font-semibold disabled:opacity-40"
+              >
+                Next
+              </button>
+            </nav>
+          )}
+        </>
+      )}
+
+      <ConductorNav active="fares" vehicleCode={code} saccoId={saccoId} />
     </main>
   )
 }

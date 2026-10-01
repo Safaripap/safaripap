@@ -14,6 +14,9 @@ export async function POST(req: NextRequest) {
   if (!vehicleCode || !amountKes || !phone) {
     return NextResponse.json({ error: 'vehicleCode, amountKes and phone are required' }, { status: 400 })
   }
+  if (!/^254[71]\d{8}$/.test(phone)) {
+    return NextResponse.json({ error: 'Enter a Kenyan mobile number, like 0712 345 678' }, { status: 400 })
+  }
 
   const { data: vehicle, error } = await supabaseAdmin
     .from('vehicles')
@@ -23,6 +26,10 @@ export async function POST(req: NextRequest) {
 
   if (error || !vehicle) {
     return NextResponse.json({ error: 'Unknown vehicle code' }, { status: 404 })
+  }
+  // Demo matatus exist only to fill the sacco dashboard; they can't be paid.
+  if (vehicle.is_demo) {
+    return NextResponse.json({ error: 'This is a demo matatu and can’t take payments' }, { status: 404 })
   }
 
   const idempotencyKey = randomUUID()

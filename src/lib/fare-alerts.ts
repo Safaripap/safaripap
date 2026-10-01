@@ -2,6 +2,8 @@
 // sound and the notification permission prompt after the user has tapped
 // something, so enableFareAlerts() must be called from a click handler.
 
+import { getPreference } from './preferences'
+
 let audioCtx: AudioContext | null = null
 let swRegistration: ServiceWorkerRegistration | null = null
 
@@ -48,8 +50,9 @@ function showNotification(amountKes: number) {
   } as NotificationOptions)
 }
 
+// Sound and vibration each respect the conductor's setting (both default on).
 export function alertFarePaid(amountKes: number) {
-  playChime()
-  navigator.vibrate?.([200, 100, 200]) // Android only; iOS ignores it
+  if (getPreference('sound')) playChime()
+  if (getPreference('vibrate')) navigator.vibrate?.([200, 100, 200]) // Android only; iOS ignores it
   showNotification(amountKes)
 }

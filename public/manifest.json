@@ -1,9 +1,10 @@
 {
-  "name": "Matatu Lightning Pay",
-  "short_name": "MatatuPay",
-  "start_url": "/pay",
+  "name": "Safaripap",
+  "short_name": "Safaripap",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#faf6ee",
   "theme_color": "#f7931a",
-  "icons": []
+  "icons": [{ "src": "/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
 }

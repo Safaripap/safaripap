@@ -3,11 +3,20 @@
 import { useEffect, useState } from 'react'
 import { SimplePool } from 'nostr-tools/pool'
 import type { Filter } from 'nostr-tools/filter'
+import { ConductorNav } from '@/components/ConductorNav'
+import { AppHeader } from '@/components/AppHeader'
 
 const RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']
 const APP_PUBKEY = process.env.NEXT_PUBLIC_NOSTR_APP_PUBKEY!
 
-export default function SaccoPage({ params }: { params: { saccoId: string } }) {
+export default function SaccoPage({
+  params,
+  searchParams,
+}: {
+  params: { saccoId: string }
+  searchParams: { vehicle?: string }
+}) {
+  const vehicleCode = searchParams.vehicle?.toUpperCase()
   const [totalKes, setTotalKes] = useState(0)
   const [byVehicle, setByVehicle] = useState<Record<string, number>>({})
   const [connected, setConnected] = useState(false)
@@ -52,18 +61,21 @@ export default function SaccoPage({ params }: { params: { saccoId: string } }) {
   }, [params.saccoId])
 
   return (
-    <main className="min-h-screen p-6 pb-10">
-      <div className="flex items-center justify-between mb-8">
-        <span className="route-plate">{params.saccoId.toUpperCase()}</span>
-        <span className={`text-sm font-medium ${connected ? 'text-route' : 'text-brand-dark/40'}`}>
-          {connected ? '● live' : 'connecting…'}
+    <main className={`min-h-screen p-6 ${vehicleCode ? 'pb-32' : 'pb-10'}`}>
+      <AppHeader plate={vehicleCode} />
+
+      <div className="flex items-baseline justify-between gap-4 mb-1">
+        <h1 className="text-lg text-brand-dark/70">Sacco fares today</h1>
+        <span
+          className={`inline-flex items-center gap-2 text-sm font-medium ${connected ? 'text-route' : 'text-brand-dark/60'}`}
+        >
+          <span aria-hidden="true" className={`w-2 h-2 rounded-full ${connected ? 'bg-route' : 'bg-brand-dark/30'}`} />
+          {connected ? 'live' : 'connecting…'}
         </span>
       </div>
-
-      <p className="text-lg text-brand-dark/50 mb-1">Today's mobile-money fares</p>
       <div className="font-display text-display mb-10">KES {totalKes.toLocaleString()}</div>
 
-      <h2 className="text-sm uppercase tracking-widest text-brand-dark/40 mb-3">By vehicle</h2>
+      <h2 className="text-xl font-semibold mb-3">By vehicle</h2>
       <div className="space-y-2">
         {Object.entries(byVehicle)
           .sort(([, a], [, b]) => b - a)
@@ -75,14 +87,14 @@ export default function SaccoPage({ params }: { params: { saccoId: string } }) {
           ))}
         {Object.keys(byVehicle).length === 0 && (
           <div className="text-center py-12">
-            <p className="text-brand-dark/40 text-lg">
-              {connected ? 'Waiting for the first fare of the day…' : 'Connecting to relays…'}
+            <p className="text-brand-dark/60 text-lg">
+              {connected ? 'Waiting for the first fare of the day…' : 'Connecting…'}
             </p>
           </div>
         )}
       </div>
 
-      <p className="text-sm text-brand-dark/30 mt-10">Live via Nostr — relays: {RELAYS.join(', ')}</p>
+      {vehicleCode && <ConductorNav active="sacco" vehicleCode={vehicleCode} saccoId={params.saccoId} />}
     </main>
   )
 }

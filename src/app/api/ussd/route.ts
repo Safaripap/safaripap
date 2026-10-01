@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 
   try {
     if (parts.length === 0) {
-      response = 'CON Welcome to Matatu Pay\n1. Pay fare'
+      response = 'CON Welcome to Safaripap\n1. Pay fare'
     } else if (parts.length === 1) {
       response = 'CON Enter the vehicle code (ask your conductor)'
     } else if (parts.length === 2) {
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
         .eq('vehicle_code', vehicleCode)
         .single()
 
-      if (!vehicle) {
+      if (!vehicle || vehicle.is_demo) {
         response = 'END Vehicle code not found. Ask your conductor and try again.'
       } else if (vehicle.preset_fare_kes) {
         response = `CON Fare is KES ${vehicle.preset_fare_kes}\n1. Confirm\n2. Enter a different amount`
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
         amountKes = parseInt(parts[2], 10)
       }
 
-      if (vehicle && amountKes && amountKes >= 10) {
+      if (vehicle && !vehicle.is_demo && amountKes && amountKes >= 10) {
         const idempotencyKey = randomUUID()
         const bitikaRes = await collectPayment({
           amount: String(amountKes),
