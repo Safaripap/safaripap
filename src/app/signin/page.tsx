@@ -41,6 +41,12 @@ export default function SignInChooserPage() {
           ))}
         </ul>
         <p className="mt-8 text-brand-dark/70">
+          Sacco not on Safaripap yet?{' '}
+          <Link href="/join" className="font-semibold text-brand-dark underline underline-offset-4">
+            Ask to join
+          </Link>
+        </p>
+        <p className="mt-3 text-brand-dark/70">
           Paying a fare? You don’t need to sign in.{' '}
           <Link href="/pay" className="font-semibold text-brand-dark underline underline-offset-4">
             Pay a fare

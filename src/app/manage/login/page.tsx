@@ -88,6 +88,12 @@ export default function ManageLoginPage() {
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
         <p className="mt-6 text-center text-brand-dark/70">
+          New to Safaripap?{' '}
+          <Link href="/join" className="font-semibold text-brand-dark underline underline-offset-4">
+            Bring your sacco
+          </Link>
+        </p>
+        <p className="mt-3 text-center text-brand-dark/70">
           Conductor?{' '}
           <Link href="/login" className="font-semibold text-brand-dark underline underline-offset-4">
             Sign in with your vehicle code

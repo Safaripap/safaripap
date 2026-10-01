@@ -152,6 +152,12 @@ export default function HomePage() {
             </dl>
             <div className="mt-10 flex flex-wrap gap-3">
               <Link
+                href="/join"
+                className="inline-flex min-h-[3.5rem] items-center rounded-2xl bg-brand px-6 font-display text-xl font-bold text-white"
+              >
+                Bring your sacco to Safaripap
+              </Link>
+              <Link
                 href="/login"
                 className="inline-flex min-h-[3.5rem] items-center rounded-2xl bg-cream px-6 font-display text-xl font-bold text-brand-dark"
               >
@@ -189,6 +195,7 @@ export default function HomePage() {
                 { href: '#how', label: 'How it works' },
                 { href: '/login', label: 'Conductor sign in' },
                 { href: '/manage/login', label: 'Sacco sign in' },
+                { href: '/join', label: 'Bring your sacco' },
               ].map((l) => (
                 <li key={l.href}>
                   <Link

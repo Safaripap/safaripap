@@ -124,3 +124,21 @@ drop policy if exists "owner reads own vehicle links" on vehicle_owners;
 create policy "owner reads own vehicle links" on vehicle_owners
   for select to authenticated
   using (user_id = auth.uid());
+
+-- Join requests from the public /join form, reviewed in /admin/requests.
+create table if not exists onboarding_requests (
+  id uuid primary key default gen_random_uuid(),
+  sacco_name text not null,
+  contact_name text not null,
+  phone text not null,                       -- 254XXXXXXXXX
+  role text not null check (role in ('manager', 'owner')),
+  matatu_count integer not null check (matatu_count between 1 and 500),
+  plates text[] not null default '{}',
+  notes text,
+  status text not null default 'new' check (status in ('new', 'done', 'dismissed')),
+  created_at timestamptz default now(),
+  handled_at timestamptz
+);
+create index if not exists onboarding_requests_status_idx on onboarding_requests (status, created_at desc);
+
+alter table onboarding_requests enable row level security;

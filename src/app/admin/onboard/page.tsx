@@ -72,7 +72,13 @@ export default function OnboardPage() {
       .catch(() => ({ saccos: [] }))
       .then((d) => {
         setSaccos(d.saccos)
-        setSaccoChoice((c) => c || d.saccos[0]?.id || NEW_SACCO)
+        // Opened from a join request: /admin/onboard?plate=KAB123B&sacco=Super%20Metro
+        const q = new URLSearchParams(window.location.search)
+        const wanted = q.get('sacco')?.trim()
+        const match = wanted && d.saccos.find((s: Sacco) => s.name.toLowerCase() === wanted.toLowerCase())
+        if (q.get('plate')) setVehicleCode((v) => v || q.get('plate')!)
+        if (wanted && !match) setNewSaccoName((n) => n || wanted)
+        setSaccoChoice((c) => c || (match ? match.id : wanted ? NEW_SACCO : d.saccos[0]?.id || NEW_SACCO))
       })
   }, [phase])
 

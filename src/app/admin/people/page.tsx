@@ -71,12 +71,23 @@ function People({ lock }: { lock: () => void }) {
     const md = await m.json().catch(() => ({ members: [] }))
     setSaccos(sd.saccos ?? [])
     setMembers(md.members ?? [])
-    setSaccoId((id) => id || sd.saccos?.[0]?.id || '')
+    // Opened from a join request: /admin/people?name=…&phone=…&role=owner&sacco=…
+    const q = new URLSearchParams(window.location.search)
+    const wanted = q.get('sacco')?.trim().toLowerCase()
+    const match = wanted && sd.saccos?.find((s: Sacco) => s.name.toLowerCase() === wanted)
+    setSaccoId((id) => id || (match ? match.id : sd.saccos?.[0]?.id || ''))
   }, [lock])
 
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search)
+    if (q.get('name')) setFullName(q.get('name')!)
+    if (q.get('phone')) setPhone(toLocalKenyanNumber(q.get('phone')!))
+    if (q.get('role') === 'manager' || q.get('role') === 'owner') setRole(q.get('role') as MemberRole)
+  }, [])
 
   useEffect(() => {
     if (handover) handoverRef.current?.focus()
