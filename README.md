@@ -21,7 +21,7 @@ Pay with ordinary M-Pesa. Settle instantly in Bitcoin, straight into the vehicle
 
 <br />
 
-[The Problem](#the-problem) &nbsp;|&nbsp; [The Solution](#the-solution) &nbsp;|&nbsp; [Why Lightning](#why-lightning-and-why-bitcoin) &nbsp;|&nbsp; [How It Works](#how-it-works) &nbsp;|&nbsp; [Security](#security-model) &nbsp;|&nbsp; [Setup](#local-setup) &nbsp;|&nbsp; [Status](#project-status)
+[The Problem](#the-problem) &nbsp;|&nbsp; [The Solution](#the-solution) &nbsp;|&nbsp; [Why Lightning](#why-lightning-and-why-bitcoin) &nbsp;|&nbsp; [How It Works](#how-it-works) &nbsp;|&nbsp; [Screenshots](#screenshots) &nbsp;|&nbsp; [Security](#security-model) &nbsp;|&nbsp; [Setup](#local-setup) &nbsp;|&nbsp; [Status](#project-status)
 
 </div>
 
@@ -35,7 +35,7 @@ Pay with ordinary M-Pesa. Settle instantly in Bitcoin, straight into the vehicle
 | :-- | :-- |
 | **Passenger** | Scans a QR code or dials a USSD code, then pays with M-Pesa from their own phone |
 | **Conductor** | Watches fares land on a live dashboard, with no need to inspect anyone's phone |
-| **Owner or SACCO** | Receives fares as Bitcoin into a wallet tied to one specific vehicle |
+| **Owner or SACCO** | Receives fares as Bitcoin into a wallet tied to one specific vehicle, and sees daily totals per vehicle on their own dashboard |
 | **Transparency** | Every successful payment publishes a public receipt event to Nostr |
 
 ---
@@ -88,7 +88,7 @@ Safaripap is not a payments app with Bitcoin attached. The design depends on pro
     </td>
     <td width="33%" valign="top">
       <h4>SACCOs and Owners</h4>
-      Receive fares into a wallet tied to a specific vehicle, with a public receipt for each payment. A dashboard with daily per-vehicle totals is planned.
+      Receive fares into a wallet tied to a specific vehicle, with a public receipt for each payment. Sign in with a phone number and PIN to see totals by day and by vehicle: a manager sees the whole SACCO, an owner sees only their own matatus.
     </td>
   </tr>
 </table>
@@ -117,6 +117,28 @@ flowchart TD
 | 4 | **Verify** | Bitika sends signed webhooks as the payment progresses (`processing_payment` to `fulfilled`, or `failed` / `payment_failed` on decline). The server verifies the HMAC signature on every webhook before updating the transaction in Supabase. |
 | 5 | **Monitor** | The conductor signs in at `/login` with a vehicle code and PIN. `/dashboard/<vehicleCode>` shows only that vehicle's fares and updates live through Supabase Realtime. |
 | 6 | **Publish** | On a successful payment, a receipt event is published to Nostr relays. |
+| 7 | **Report** | SACCO managers and matatu owners sign in at `/manage/login` with a phone number and PIN. `/manage` shows fare totals for any date range: the period total against the previous period, fares per day, totals per vehicle, and a spreadsheet download. |
+
+New SACCOs ask to join at `/join`. Safaripap staff review requests in the admin area (`/admin`) and onboard each matatu in about a minute: the app creates its LNbits wallet and Lightning Address, saves the vehicle, creates the conductor login, and produces a printable QR sticker.
+
+---
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="25%" align="center"><img src="docs/screenshots/pay.png" alt="Pay screen with the vehicle's preset fare of KES 50" /><br /><sub>Pay a fare</sub></td>
+    <td width="25%" align="center"><img src="docs/screenshots/enter-code.png" alt="Screen asking which matatu, with a vehicle code field" /><br /><sub>No QR? Type the vehicle code</sub></td>
+    <td width="25%" align="center"><img src="docs/screenshots/sacco-signin.png" alt="Sacco sign-in with phone number and PIN" /><br /><sub>Sacco sign-in</sub></td>
+    <td width="25%" align="center"><img src="docs/screenshots/join.png" alt="Form for a sacco to ask to join Safaripap" /><br /><sub>Bring your sacco</sub></td>
+  </tr>
+</table>
+
+<img src="docs/screenshots/landing.png" alt="Safaripap landing page: Pay your matatu fare in seconds" />
+<p align="center"><sub>Landing page</sub></p>
+
+<img src="docs/screenshots/manager-dashboard.png" alt="Manager dashboard showing 30 days of fares: total, change on the previous period, fares per day, and totals per matatu" />
+<p align="center"><sub>Sacco manager dashboard, shown with generated sample data</sub></p>
 
 ---
 
@@ -127,6 +149,10 @@ flowchart TD
 | **M-Pesa PIN** | Entered only on Safaricom's own STK prompt on the passenger's phone. Safaripap never displays a PIN field and never receives or stores a PIN. |
 | **Payment authenticity** | Every Bitika webhook is verified with an HMAC signature before the transaction is updated. Status changes are never accepted on trust. |
 | **Conductor access** | Conductors sign in with a vehicle code and PIN. Each dashboard is scoped to a single vehicle and enforced by Supabase Row Level Security, not just by the interface. |
+| **Passenger privacy** | Conductors only ever receive the last 3 digits of a passenger's phone number and receipt. Column-level grants keep full numbers out of their queries and the realtime feed. Searching by a full M-Pesa receipt is matched on the server, which returns only the matching rows. |
+| **Manager and owner access** | Managers and owners sign in with a phone number and PIN. Every dashboard request is checked on the server: a manager gets their SACCO's vehicles, an owner only the vehicles linked to them. |
+| **Admin** | Onboarding, stickers, accounts and demo data live under `/admin`, protected by a passcode (`ADMIN_PASSCODE`) and not linked from the public site. The public `/join` form only records a request; it cannot create wallets or logins. |
+| **Demo data** | Placeholder vehicles used to fill the SACCO dashboard are flagged as demo, labelled on screen, and refused by the payment API and USSD. Their Lightning Address is on a reserved `.invalid` domain, so they can never be paid. |
 | **Privileged keys** | The Supabase service role key and Bitika credentials exist only on the server. The browser uses the anon key, limited by Row Level Security. |
 | **Funds custody** | Each vehicle has its own LNbits wallet, so one vehicle's funds are not pooled with another's. |
 | **Relay failures** | Nostr publishing is non-blocking. A slow or unavailable relay never delays or fails the webhook response. |
@@ -156,22 +182,44 @@ flowchart TD
 ```
 src/
   app/
+    page.tsx                            Landing page
+    pay/page.tsx                        Enter a vehicle code (no QR to hand)
     pay/[vehicleCode]/page.tsx          Passenger PWA
-    dashboard/[vehicleCode]/page.tsx    Conductor dashboard (Supabase Realtime)
+    login/page.tsx                      Conductor sign-in (vehicle code + PIN)
+    dashboard/[vehicleCode]/page.tsx    Conductor dashboard (Supabase Realtime, search)
+    sacco/[saccoId]/page.tsx            Today's SACCO totals for conductors (Nostr)
+    manage/login/page.tsx               Manager and owner sign-in (phone + PIN)
+    manage/page.tsx                     Fare metrics dashboard for managers and owners
+    join/page.tsx                       Request to join, for new SACCOs and owners
+    signin/page.tsx                     Choose conductor or SACCO sign-in
+    admin/                              Staff area: requests, onboarding, stickers,
+                                        managers and owners, demo data
     api/
       pay/route.ts                      PWA payment initiation
       ussd/route.ts                     Africa's Talking USSD webhook
       webhooks/bitika/route.ts          Bitika status webhook (signature-verified)
       transactions/[code]/route.ts      Status polling for the PWA
       vehicles/[code]/route.ts          Vehicle lookup
+      dashboard/search/route.ts         Full-receipt search for conductors
+      manage/                           Manager and owner data (who am I, insights)
+      join/route.ts                     Join requests
+      admin/                            Staff APIs (passcode session)
+  components/                           Shared UI (logo, header, nav, settings, charts)
   lib/
     bitika.ts                           Bitika API client
+    lnbits.ts                           LNbits wallets and Lightning Addresses
+    onboarding.ts                       Onboard a vehicle end to end
+    members.ts                          Manager and owner accounts and access
+    insights.ts                         Fare metrics (Nairobi days)
+    demo-data.ts                        Demo vehicles and fare history
     supabase-admin.ts                   Server-side Supabase client (service role)
     supabase-browser.ts                 Browser Supabase client (anon key)
     phone.ts                            Kenyan phone normalization (07 / 01 / 254 to 254)
     nostr.ts                            Nostr receipt publishing
 supabase/
   schema.sql                            Full database schema
+  migrations/                           Changes for an existing project, in date order
+tests/                                  Vitest unit and route tests
 ```
 
 </details>
@@ -187,6 +235,13 @@ supabase/
 | `SUPABASE_SERVICE_ROLE_KEY` | Server only | Full-access key. Never expose to the browser |
 | `BITIKA_API_KEY` | Server only | Issued from the Bitika developer portal |
 | `BITIKA_WEBHOOK_SECRET` | Server only | Signing secret for the registered webhook endpoint. Regenerates if the endpoint is edited or re-added |
+| `LNBITS_HOST` | Server only | Your LNbits instance, e.g. `https://your-instance.lnbits.com` |
+| `LNBITS_ADMIN_KEY` | Server only | Admin key of the super user's wallet. Every vehicle wallet is created under the same account |
+| `LNBITS_ACCESS_TOKEN` | Server only | Account access token (from an LNbits access control list) allowed to create wallets. LNbits 1.x refuses a wallet admin key for this |
+| `NOSTR_SECRET_KEY_HEX` | Server only | Key that signs receipt events. Generate with `node scripts/gen-nostr-key.mjs` |
+| `NEXT_PUBLIC_NOSTR_APP_PUBKEY` | Client | Public key matching the secret above, used to read receipts |
+| `ADMIN_PASSCODE` | Server only | Passcode for the staff area at `/admin` |
+| `NEXT_PUBLIC_APP_URL` | Server | The deployed site's address. QR stickers point here, so a sticker printed from a laptop never points at `localhost` |
 
 ---
 
@@ -200,13 +255,15 @@ npm install
 
 **2. Configure the environment.** Create a `.env` file with the variables above.
 
-**3. Apply the database schema.** Run `supabase/schema.sql` in the Supabase SQL editor. On an existing project, run the files in `supabase/migrations/` instead. Then enable Realtime on the `transactions` table under Database, Replication.
+**3. Apply the database schema.** Run `supabase/schema.sql` in the Supabase SQL editor. On an existing project, run the files in `supabase/migrations/` instead, in date order. Then enable Realtime on the `transactions` table under Database, Replication.
 
-**4. Create vehicle wallets.** In LNbits, create a wallet and a variable-amount LNURLp pay link for each vehicle to obtain its Lightning Address.
+**4. Set up LNbits.** On your LNbits instance (for example [LNbits SaaS](https://my.lnbits.com)), check under Server, Funding Source that it uses a real Lightning backend, not FakeWallet. Enable the LNURLp extension. Create an access control list that may create wallets, generate a token for it, and set it as `LNBITS_ACCESS_TOKEN`.
 
-**5. Register vehicles.** In Supabase, insert one `saccos` row and one `vehicles` row per vehicle, including `lnbits_wallet_id`, `lnbits_invoice_key`, and `lightning_address`.
+**5. Onboard vehicles.** Start the app (step 7), open `/admin`, enter `ADMIN_PASSCODE`, and use **Onboard a matatu**. It creates the vehicle's LNbits wallet and Lightning Address, saves the vehicle and its SACCO, creates the conductor login, and shows the PIN once with a printable QR sticker. Lost stickers can be reprinted under **Stickers**.
 
-**6. Create conductor logins.** Running the command again resets the PIN.
+**6. Add managers and owners.** Under **Managers & owners** in `/admin`, create sign-ins for SACCO managers and matatu owners and assign owners their vehicles. To fill the SACCO dashboard for a demo, **Demo data** adds placeholder vehicles with a realistic fare history.
+
+A conductor's PIN can also be set or reset from the command line:
 
 ```bash
 npm run create-conductor <vehicleCode> <6-digit PIN>
@@ -223,6 +280,12 @@ ngrok http 3000
 
 **9. Connect USSD.** In Africa's Talking, point the sandbox USSD channel callback at `<ngrok-url>/api/ussd`.
 
+**10. Run the tests.**
+
+```bash
+npm test
+```
+
 ---
 
 ## Project Status
@@ -235,9 +298,12 @@ ngrok http 3000
 | Live conductor dashboard through Supabase Realtime, no refresh required | Working |
 | Nostr receipt publishing, non-blocking so a slow relay never delays the webhook | Working |
 | Per-vehicle LNbits wallets and Lightning Addresses | Working |
-| Landing page | In progress |
-| Visual design pass on the PWA and dashboard | In progress |
-| SACCO and owner dashboard with daily per-vehicle totals | Planned |
+| Landing page, and vehicle code entry for passengers without the QR | Working |
+| Visual design and accessibility pass (success animation, high contrast, screen reader support) | Working |
+| Conductor dashboard search, with full-receipt matching on the server | Working |
+| Admin onboarding: LNbits wallet, Lightning Address, conductor login and QR sticker in one flow | Working |
+| Join requests from new SACCOs, reviewed in admin | Working |
+| SACCO and owner dashboard with daily per-vehicle totals | Working |
 | Live Bitika API key (required before demo day, as the sandbox never moves real money) | Pending approval |
 
 > [!NOTE]
