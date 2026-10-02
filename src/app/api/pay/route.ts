@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { collectPayment } from '@/lib/bitika'
 import { normalizePhoneNumber } from '@/lib/phone'
+import { isDemoPhone, newDemoCode } from '@/lib/demo-phone'
 
 // Called by the passenger PWA once the passenger has entered vehicle code,
 // amount and phone number. Never handles a PIN — Bitika's STK push triggers
@@ -30,6 +31,22 @@ export async function POST(req: NextRequest) {
   // Demo matatus exist only to fill the sacco dashboard; they can't be paid.
   if (vehicle.is_demo) {
     return NextResponse.json({ error: 'This is a demo matatu and can’t take payments' }, { status: 404 })
+  }
+
+  // The demo phone never reaches Bitika; /api/transactions settles it shortly.
+  if (isDemoPhone(phone)) {
+    const transactionCode = newDemoCode()
+    const { error: demoError } = await supabaseAdmin.from('transactions').insert({
+      vehicle_id: vehicle.id,
+      amount_kes: amountKes,
+      payer_phone: phone,
+      bitika_transaction_code: transactionCode,
+      status: 'processing',
+      source: 'pwa',
+      is_demo: true,
+    })
+    if (demoError) return NextResponse.json({ error: 'Could not start payment. Please try again.' }, { status: 502 })
+    return NextResponse.json({ transactionCode })
   }
 
   const idempotencyKey = randomUUID()
