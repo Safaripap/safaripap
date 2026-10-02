@@ -10,6 +10,8 @@ import { rememberVehicle } from '@/lib/recent-vehicles'
 
 type Screen = 'loading' | 'notFound' | 'amount' | 'phone' | 'waiting' | 'success' | 'error'
 
+const POLL_TIMEOUT_MS = 3 * 60 * 1000
+
 interface Vehicle {
   vehicle_code: string
   preset_fare_kes: number | null
@@ -78,7 +80,19 @@ export default function PayPage({
 
       setTransactionCode(data.transactionCode)
 
+      // Bitika reports failure as 'failed' (M-Pesa declined or cancelled) or
+      // 'payment_failed' (the Lightning payout failed). Stop waiting after a
+      // few minutes so a lost confirmation never leaves the passenger stuck.
+      const startedAt = Date.now()
       pollRef.current = setInterval(async () => {
+        if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
+          clearInterval(pollRef.current!)
+          setErrorMsg(
+            'We didn’t get a confirmation in time. If M-Pesa took the money, show the conductor your M-Pesa message. Otherwise, try again.'
+          )
+          setScreen('error')
+          return
+        }
         const statusRes = await fetch(`/api/transactions/${data.transactionCode}`)
         if (!statusRes.ok) return
         const statusData = await statusRes.json()
@@ -86,7 +100,7 @@ export default function PayPage({
           clearInterval(pollRef.current!)
           setReceipt(statusData)
           setScreen('success')
-        } else if (statusData.status === 'failed') {
+        } else if (statusData.status === 'failed' || statusData.status === 'payment_failed') {
           clearInterval(pollRef.current!)
           setErrorMsg('Payment did not go through. Please try again.')
           setScreen('error')
