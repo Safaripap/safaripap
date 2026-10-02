@@ -26,6 +26,9 @@ export interface PaymentEventInput {
   saccoId: string
   amountKes: number
   receiptCode: string
+  // A demo-phone fare (no real money): tagged so the public record never
+  // passes it off as a real payment.
+  demo?: boolean
 }
 
 export async function publishPaymentEvent(input: PaymentEventInput): Promise<string> {
@@ -39,11 +42,13 @@ export async function publishPaymentEvent(input: PaymentEventInput): Promise<str
         ['t', 'matatu-payment'],
         ['vehicle', input.vehicleCode],
         ['sacco', input.saccoId],
+        ...(input.demo ? [['demo', 'true']] : []),
       ],
       content: JSON.stringify({
         amount_kes: input.amountKes,
         vehicle: input.vehicleCode,
         receipt: input.receiptCode,
+        ...(input.demo ? { demo: true } : {}),
       }),
     },
     sk
@@ -51,4 +56,16 @@ export async function publishPaymentEvent(input: PaymentEventInput): Promise<str
 
   await Promise.any(pool.publish(RELAYS, event))
   return event.id
+}
+
+// Publish, but never hold the caller up for more than `ms`. On Vercel a
+// function can be frozen as soon as it responds, so a receipt that's
+// fire-and-forget may never leave; waiting briefly gives it time, while a
+// slow relay still can't delay the response for long. Never throws.
+export async function publishPaymentEventSoon(input: PaymentEventInput, ms = 3000): Promise<void> {
+  try {
+    await Promise.race([publishPaymentEvent(input), new Promise((resolve) => setTimeout(resolve, ms))])
+  } catch (err) {
+    console.error('Nostr publish failed (non-fatal):', err)
+  }
 }

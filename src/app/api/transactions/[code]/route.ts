@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { DEMO_SETTLE_MS, demoReceipt, isDemoCode } from '@/lib/demo-phone'
+import { publishPaymentEventSoon } from '@/lib/nostr'
 
 // The PWA polls this every couple of seconds after initiating a payment, so it
 // never talks to Bitika directly — it just reads our own DB, which the Bitika
@@ -25,9 +26,23 @@ export async function GET(_req: NextRequest, { params }: { params: { code: strin
       .eq('bitika_transaction_code', params.code)
       .eq('is_demo', true)
       .eq('status', 'processing')
-      .select('status, amount_kes, mpesa_receipt, phone_last3, receipt_last3')
+      .select('status, amount_kes, mpesa_receipt, phone_last3, receipt_last3, vehicles(vehicle_code, sacco_id)')
       .maybeSingle()
-    if (settled) return NextResponse.json(settled)
+    if (settled) {
+      // Publish the receipt like the webhook does, so the conductors' sacco
+      // totals page (which reads Nostr) picks up demo fares too.
+      const { vehicles, ...fare } = settled as any
+      if (vehicles) {
+        await publishPaymentEventSoon({
+          vehicleCode: vehicles.vehicle_code,
+          saccoId: vehicles.sacco_id ?? 'unassigned',
+          amountKes: fare.amount_kes,
+          receiptCode: fare.mpesa_receipt ?? '',
+          demo: true,
+        })
+      }
+      return NextResponse.json(fare)
+    }
   }
 
   const { created_at: _createdAt, ...publicFields } = data
