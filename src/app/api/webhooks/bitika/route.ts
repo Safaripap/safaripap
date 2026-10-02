@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { publishPaymentEvent } from '@/lib/nostr'
+import { publishPaymentEventSoon } from '@/lib/nostr'
 
 // Bitika signs "<timestamp>.<raw body>" with your webhook secret (HMAC-SHA256).
 // Header: X-Bitika-Signature: t=<ts>,v1=<hmac>
@@ -68,13 +68,11 @@ export async function POST(req: NextRequest) {
   }
 
   if (status === 'fulfilled' && txn?.vehicles) {
-    publishPaymentEvent({
+    await publishPaymentEventSoon({
       vehicleCode: txn.vehicles.vehicle_code,
       saccoId: txn.vehicles.sacco_id ?? 'unassigned',
       amountKes: txn.amount_kes,
       receiptCode: txn.mpesa_receipt ?? '',
-    }).catch((err) => {
-      console.error('Nostr publish failed (non-fatal):', err)
     })
   }
 

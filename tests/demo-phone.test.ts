@@ -7,7 +7,10 @@ const state = vi.hoisted(() => ({
   inserted: [] as any[],
   updates: [] as { patch: any; filters: Record<string, unknown> }[],
   collect: vi.fn(),
+  publish: vi.fn(async (_input: Record<string, unknown>) => {}),
 }))
+
+vi.mock('@/lib/nostr', () => ({ publishPaymentEventSoon: state.publish }))
 
 vi.mock('@/lib/bitika', () => ({ collectPayment: state.collect }))
 vi.mock('@/lib/supabase-admin', () => ({
@@ -24,7 +27,7 @@ vi.mock('@/lib/supabase-admin', () => ({
           table === 'vehicles' ? { data: state.vehicle, error: null } : { data: state.txn, error: state.txn ? null : { message: 'x' } },
         maybeSingle: async () => {
           state.updates.push({ patch, filters: { ...filters } })
-          return { data: { ...state.txn, ...patch, receipt_last3: 'F3K' } }
+          return { data: { ...state.txn, ...patch, receipt_last3: 'F3K', vehicles: { vehicle_code: 'KAB123B', sacco_id: 's1' } } }
         },
       }
       return b
@@ -45,6 +48,7 @@ beforeEach(() => {
   state.inserted = []
   state.updates = []
   state.collect.mockReset()
+  state.publish.mockClear()
   state.collect.mockResolvedValue({ transaction_code: 'SBX-1', status: 'processing' })
 })
 afterEach(() => vi.unstubAllEnvs())
@@ -96,6 +100,14 @@ describe('polling a demo fare', () => {
     expect(body.status).toBe('fulfilled')
     expect(body.mpesa_receipt).toMatch(/^T[A-Z0-9]{9}$/)
     expect(state.updates[0].filters).toMatchObject({ bitika_transaction_code: 'DEMO-ABC', is_demo: true, status: 'processing' })
+    expect(body.vehicles).toBeUndefined()
+  })
+
+  it('publishes a receipt marked as demo, so the sacco totals page counts it', async () => {
+    state.txn = { status: 'processing', amount_kes: 50, created_at: new Date(Date.now() - 6000).toISOString() }
+    await poll('DEMO-ABC')
+    expect(state.publish).toHaveBeenCalledOnce()
+    expect(state.publish.mock.calls[0][0]).toMatchObject({ vehicleCode: 'KAB123B', saccoId: 's1', amountKes: 50, demo: true })
   })
 
   it('never settles a real Bitika fare on its own', async () => {
@@ -103,5 +115,6 @@ describe('polling a demo fare', () => {
     const body = await (await poll('SBX-6B036C')).json()
     expect(body.status).toBe('processing')
     expect(state.updates).toHaveLength(0)
+    expect(state.publish).not.toHaveBeenCalled()
   })
 })
