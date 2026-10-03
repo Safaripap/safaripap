@@ -5,6 +5,7 @@ import { SimplePool } from 'nostr-tools/pool'
 import type { Filter } from 'nostr-tools/filter'
 import { ConductorNav } from '@/components/ConductorNav'
 import { AppHeader } from '@/components/AppHeader'
+import { isForSacco } from '@/lib/receipts'
 
 const RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']
 const APP_PUBKEY = process.env.NEXT_PUBLIC_NOSTR_APP_PUBKEY!
@@ -25,10 +26,12 @@ export default function SaccoPage({
     const pool = new SimplePool()
     const seen = new Set<string>()
 
+    // Relays only index single-letter tags, so a '#sacco' filter matches
+    // nothing. Ask for every Safaripap receipt ('#t') and keep this sacco's.
     const filter: Filter = {
       kinds: [1],
       authors: [APP_PUBKEY],
-      '#sacco': [params.saccoId],
+      '#t': ['matatu-payment'],
       since: Math.floor(Date.now() / 1000) - 86400,
     }
 
@@ -43,6 +46,7 @@ export default function SaccoPage({
           setConnected(true)
           if (seen.has(event.id)) return // relays can send duplicates
           seen.add(event.id)
+          if (!isForSacco(event.tags, params.saccoId)) return
           try {
             const { amount_kes, vehicle } = JSON.parse(event.content)
             setTotalKes((t) => t + amount_kes)
