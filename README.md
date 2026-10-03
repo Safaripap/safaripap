@@ -311,6 +311,12 @@ npm test
 
 ---
 
+## License
+
+Safaripap is open source under the [MIT License](LICENSE).
+
+---
+
 <div align="center">
 
 Built for Hack4Freedom by the Lady Lightning team.
