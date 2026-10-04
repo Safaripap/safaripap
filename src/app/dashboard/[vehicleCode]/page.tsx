@@ -5,7 +5,7 @@ import { supabaseBrowser } from '@/lib/supabase-browser'
 import { alertFarePaid, enableFareAlerts, fareAlertsEnabled } from '@/lib/fare-alerts'
 import { AppHeader } from '@/components/AppHeader'
 import { ConductorNav } from '@/components/ConductorNav'
-import { Highlight } from '@/components/Highlight'
+import { FareTable } from '@/components/FareTable'
 import {
   DEFAULT_VIEW,
   dayOptions,
@@ -25,12 +25,6 @@ import {
 } from '@/lib/fares'
 
 type LoadState = 'loading' | 'notFound' | 'ready'
-
-const PILL_CLASSES: Record<Tone, string> = {
-  route: 'bg-route-light text-route',
-  wait: 'bg-wait-light text-wait-ink',
-  neutral: 'bg-brand-dark/5 text-brand-dark/70',
-}
 
 const SELECT_CLASSES =
   'w-full min-h-[3.25rem] rounded-xl border-2 border-brand-dark/15 bg-white px-3 text-lg text-brand-dark focus:border-brand outline-none'
@@ -412,72 +406,14 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
 
       {loadState === 'ready' && visibleRows.length > 0 && (
         <>
-          <div
-            aria-hidden="true"
-            className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_7rem_9rem_12rem] gap-x-4 px-4 pb-2 text-sm text-brand-dark/60"
-          >
-            <span>Phone / receipt</span>
-            <span>Fare</span>
-            <span>Time</span>
-            <span className="text-right">Status</span>
-          </div>
-          <ul className={`space-y-2 ${busy ? 'opacity-60' : ''}`} aria-busy={busy}>
-            {visibleRows.map((r) => {
-              const status = statusOf(r)
-              const canVerify = !r.verified_by_conductor && r.status === 'fulfilled'
-              const receipt = r.receipt_last3
-              const localQuery = receiptSearch ? '' : q
-              const tint = fresh[r.id]
-              const rowClass = `motion-row-highlight w-full text-left p-4 rounded-xl bg-white border-2 border-brand-dark/10 grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_7rem_9rem_12rem] gap-x-4 gap-y-1 items-center ${
-                tint ? `is-new-${tint}` : ''
-              }`
-              const cells = (
-                <>
-                  <span className="font-display text-3xl font-bold tabular-nums text-brand-dark break-words">
-                    <span className="sr-only">Phone ending </span>
-                    <Highlight text={r.phone_last3} query={localQuery} />
-                    <span aria-hidden="true" className="mx-2 text-brand-dark/30">/</span>
-                    <span className="sr-only">, receipt ending </span>
-                    {receipt ? (
-                      <Highlight text={receipt} query={localQuery} />
-                    ) : (
-                      <span className="text-brand-dark/30" aria-label="pending">—</span>
-                    )}
-                  </span>
-                  <span className="col-start-1 flex flex-wrap gap-x-3 sm:contents">
-                    <span className="font-body font-semibold text-lg text-brand-dark">KES {r.amount_kes}</span>
-                    <span className="text-lg tabular-nums text-brand-dark/70">{formatWhen(r.created_at)}</span>
-                  </span>
-                  {r.mpesa_receipt && (
-                    <span className="col-start-1 sm:col-span-3 text-base text-brand-dark/70 tabular-nums break-all">
-                      Receipt{' '}
-                      <span className="font-semibold text-brand-dark">
-                        <Highlight text={r.mpesa_receipt} query={q} suffix />
-                      </span>
-                    </span>
-                  )}
-                  <span className="col-start-2 row-start-1 row-span-2 sm:col-start-4 sm:row-span-1 justify-self-end">
-                    <span
-                      className={`inline-block rounded-full px-3 py-1 text-base font-semibold text-center ${PILL_CLASSES[status.tone]}`}
-                    >
-                      {status.label}
-                    </span>
-                  </span>
-                </>
-              )
-              return (
-                <li key={r.id}>
-                  {canVerify ? (
-                    <button onClick={() => verify(r.id)} className={rowClass}>
-                      {cells}
-                    </button>
-                  ) : (
-                    <div className={rowClass}>{cells}</div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
+          <FareTable
+            rows={visibleRows}
+            query={receiptSearch ? '' : q}
+            fullReceiptQuery={q}
+            fresh={fresh}
+            busy={busy}
+            onVerify={verify}
+          />
 
           {!receiptSearch && pageCount > 1 && (
             <nav aria-label="Fare pages" className="mt-4 flex items-center justify-between gap-2">

@@ -93,18 +93,21 @@ export function InsightsView({
 
       {insights.byVehicle.length > 1 && (
         <section aria-labelledby="vehicles-heading" className="mb-10">
-          <h2 id="vehicles-heading" className="text-xl font-semibold mb-3">
-            By matatu
-          </h2>
-          <VehicleTable vehicles={insights.byVehicle} onPick={onPickVehicle} />
+          <VehicleTable
+            vehicles={insights.byVehicle}
+            onPick={onPickVehicle}
+            title="By matatu"
+            headingId="vehicles-heading"
+          />
         </section>
       )}
 
       <section aria-labelledby="table-heading">
-        <h2 id="table-heading" className="text-xl font-semibold mb-3">
-          {insights.byVehicle.length > 1 ? 'Daily totals per matatu' : 'Daily totals'}
-        </h2>
-        <DailyTable insights={insights} />
+        <DailyTable
+          insights={insights}
+          title={insights.byVehicle.length > 1 ? 'Daily totals per matatu' : 'Daily totals'}
+          headingId="table-heading"
+        />
       </section>
     </div>
   )

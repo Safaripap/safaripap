@@ -6,6 +6,7 @@ import type { Filter } from 'nostr-tools/filter'
 import { ConductorNav } from '@/components/ConductorNav'
 import { AppHeader } from '@/components/AppHeader'
 import { isForSacco } from '@/lib/receipts'
+import { ROW, TABLE, TablePanel, TD, TH, THEAD } from '@/components/TablePanel'
 
 const RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']
 const APP_PUBKEY = process.env.NEXT_PUBLIC_NOSTR_APP_PUBKEY!
@@ -79,24 +80,37 @@ export default function SaccoPage({
       </div>
       <div className="font-display text-display mb-10">KES {totalKes.toLocaleString()}</div>
 
-      <h2 className="text-xl font-semibold mb-3">By vehicle</h2>
-      <div className="space-y-2">
-        {Object.entries(byVehicle)
-          .sort(([, a], [, b]) => b - a)
-          .map(([code, amt]) => (
-            <div key={code} className="flex justify-between items-center text-2xl bg-white rounded-xl p-4 border border-brand-dark/10">
-              <span className="font-display">{code}</span>
-              <span className="text-brand-dark/70">KES {amt.toLocaleString()}</span>
-            </div>
-          ))}
-        {Object.keys(byVehicle).length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-brand-dark/60 text-lg">
-              {connected ? 'Waiting for the first fare of the day…' : 'Connecting…'}
-            </p>
+      {Object.keys(byVehicle).length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-brand-dark/60 text-lg">
+            {connected ? 'Waiting for the first fare of the day…' : 'Connecting…'}
+          </p>
+        </div>
+      ) : (
+        <TablePanel title="By vehicle" aside={`KES ${totalKes.toLocaleString()}`}>
+          <div className="overflow-x-auto">
+            <table className={TABLE}>
+              <caption className="sr-only">Fares today per vehicle</caption>
+              <thead className={THEAD}>
+                <tr>
+                  <th scope="col" className={TH}>Vehicle</th>
+                  <th scope="col" className={`${TH} text-right`}>KES</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(byVehicle)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([code, amt]) => (
+                    <tr key={code} className={ROW}>
+                      <th scope="row" className={`${TD} font-display text-xl font-bold`}>{code}</th>
+                      <td className={`${TD} text-right text-xl font-bold`}>{amt.toLocaleString()}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+        </TablePanel>
+      )}
 
       {vehicleCode && <ConductorNav active="sacco" vehicleCode={vehicleCode} saccoId={params.saccoId} />}
     </main>
