@@ -39,7 +39,6 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [alertsOn, setAlertsOn] = useState(false)
   const [connected, setConnected] = useState(false)
-  const [saccoId, setSaccoId] = useState<string | null>(null)
   // Rows that just arrived, flashed with a tint of their status colour. The
   // class is removed a frame later and the background transitions back.
   const [fresh, setFresh] = useState<Record<string, Tone>>({})
@@ -89,14 +88,13 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
     ;(async () => {
       const { data: vehicle } = await supabaseBrowser
         .from('vehicles')
-        .select('id, sacco_id')
+        .select('id')
         .eq('vehicle_code', code)
         .single()
       if (!vehicle) {
         setLoadState('notFound')
         return
       }
-      setSaccoId(vehicle.sacco_id)
       setVehicleId(vehicle.id)
 
       // React Strict Mode runs this effect twice in dev. If a channel with this
@@ -439,7 +437,7 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
         </>
       )}
 
-      <ConductorNav active="fares" vehicleCode={code} saccoId={saccoId} />
+      <ConductorNav active="fares" vehicleCode={code} />
     </main>
   )
 }

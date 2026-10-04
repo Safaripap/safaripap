@@ -187,7 +187,7 @@ src/
     pay/[vehicleCode]/page.tsx          Passenger PWA
     login/page.tsx                      Conductor sign-in (vehicle code + PIN)
     dashboard/[vehicleCode]/page.tsx    Conductor dashboard (Supabase Realtime, search)
-    sacco/[saccoId]/page.tsx            Today's SACCO totals for conductors (Nostr)
+    sacco/[saccoId]/page.tsx            Today's SACCO totals from public Nostr receipts (not shown to conductors)
     manage/login/page.tsx               Manager and owner sign-in (phone + PIN)
     manage/page.tsx                     Fare metrics dashboard for managers and owners
     join/page.tsx                       Request to join, for new SACCOs and owners

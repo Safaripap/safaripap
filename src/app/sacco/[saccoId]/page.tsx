@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { SimplePool } from 'nostr-tools/pool'
 import type { Filter } from 'nostr-tools/filter'
-import { ConductorNav } from '@/components/ConductorNav'
 import { AppHeader } from '@/components/AppHeader'
 import { isForSacco } from '@/lib/receipts'
 import { ROW, TABLE, TablePanel, TD, TH, THEAD } from '@/components/TablePanel'
@@ -11,14 +10,9 @@ import { ROW, TABLE, TablePanel, TD, TH, THEAD } from '@/components/TablePanel'
 const RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']
 const APP_PUBKEY = process.env.NEXT_PUBLIC_NOSTR_APP_PUBKEY!
 
-export default function SaccoPage({
-  params,
-  searchParams,
-}: {
-  params: { saccoId: string }
-  searchParams: { vehicle?: string }
-}) {
-  const vehicleCode = searchParams.vehicle?.toUpperCase()
+// Live sacco-wide totals from public Nostr receipts. Not part of the
+// conductor's screens: conductors see only their own vehicle's fares.
+export default function SaccoPage({ params }: { params: { saccoId: string } }) {
   const [totalKes, setTotalKes] = useState(0)
   const [byVehicle, setByVehicle] = useState<Record<string, number>>({})
   const [connected, setConnected] = useState(false)
@@ -66,8 +60,8 @@ export default function SaccoPage({
   }, [params.saccoId])
 
   return (
-    <main className={`min-h-screen p-6 ${vehicleCode ? 'pb-32' : 'pb-10'}`}>
-      <AppHeader plate={vehicleCode} />
+    <main className="min-h-screen p-6 pb-10">
+      <AppHeader />
 
       <div className="flex items-baseline justify-between gap-4 mb-1">
         <h1 className="text-lg text-brand-dark/70">Sacco fares today</h1>
@@ -112,7 +106,6 @@ export default function SaccoPage({
         </TablePanel>
       )}
 
-      {vehicleCode && <ConductorNav active="sacco" vehicleCode={vehicleCode} saccoId={params.saccoId} />}
     </main>
   )
 }

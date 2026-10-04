@@ -25,7 +25,7 @@ export default function PayPage({
   searchParams,
 }: {
   params: { vehicleCode: string }
-  searchParams: { from?: string; sacco?: string }
+  searchParams: { from?: string }
 }) {
   // Passengers arrive from the QR sticker and see no nav. A conductor who
   // opened this from the dashboard to prompt a passenger gets the nav back.
@@ -285,7 +285,7 @@ export default function PayPage({
         {resultText}
       </p>
 
-      {fromConductor && <ConductorNav active="prompt" vehicleCode={code} saccoId={searchParams.sacco} />}
+      {fromConductor && <ConductorNav active="prompt" vehicleCode={code} />}
     </main>
   )
 }

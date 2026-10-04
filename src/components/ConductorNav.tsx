@@ -2,19 +2,11 @@ import Link from 'next/link'
 
 // Persistent bottom navigation for the conductor's screens. Real links, so
 // keyboard, screen readers and the back button all behave normally. Each
-// screen passes along the vehicle code and sacco ID it knows about so the
-// other screens aren't dead ends.
-type Section = 'fares' | 'prompt' | 'sacco'
+// screen passes along the vehicle code so the other screen isn't a dead end.
+// Conductors only ever see their own vehicle: there is no sacco-wide view here.
+type Section = 'fares' | 'prompt'
 
-export function ConductorNav({
-  active,
-  vehicleCode,
-  saccoId,
-}: {
-  active: Section
-  vehicleCode?: string | null
-  saccoId?: string | null
-}) {
+export function ConductorNav({ active, vehicleCode }: { active: Section; vehicleCode?: string | null }) {
   const items: { id: Section; label: string; href: string | null; icon: JSX.Element }[] = [
     {
       id: 'fares',
@@ -25,19 +17,13 @@ export function ConductorNav({
     {
       id: 'prompt',
       label: 'Prompt passenger',
-      href: vehicleCode ? `/pay/${vehicleCode}?from=conductor${saccoId ? `&sacco=${saccoId}` : ''}` : null,
+      href: vehicleCode ? `/pay/${vehicleCode}?from=conductor` : null,
       icon: (
         <>
           <rect x="7" y="3" width="10" height="18" rx="2" />
           <path d="M11 17h2" />
         </>
       ),
-    },
-    {
-      id: 'sacco',
-      label: 'Sacco totals',
-      href: saccoId ? `/sacco/${saccoId}${vehicleCode ? `?vehicle=${vehicleCode}` : ''}` : null,
-      icon: <path d="M5 20V11M12 20V5M19 20v-6" />,
     },
   ]
 
@@ -78,7 +64,7 @@ export function ConductorNav({
                   {content}
                 </Link>
               ) : (
-                // No vehicle/sacco known for this link yet — show it, but don't
+                // No vehicle known for this link yet — show it, but don't
                 // pretend it goes somewhere.
                 <span aria-disabled="true" className={`${base} text-brand-dark/40`}>
                   {content}
