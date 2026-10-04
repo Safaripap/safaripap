@@ -1,7 +1,10 @@
 import { z } from 'zod'
 
-// LNbits wallet API. All calls authenticate with a wallet key in X-Api-Key.
-// Balances come back in msats; invoice amounts are in sats.
+// LNbits wallet API (invoices, payments, balances) for treasury settlement,
+// ported from Nauli Sacco's lib/server/lnbits.ts. All calls authenticate with
+// a wallet key in X-Api-Key. Balances come back in msats; invoice amounts are
+// in sats. Reads Safaripap's LNBITS_HOST (Nauli Sacco calls it LNBITS_URL);
+// account-level wallet creation stays in lnbits.ts.
 
 export class LnbitsError extends Error {
   constructor(
@@ -14,8 +17,8 @@ export class LnbitsError extends Error {
 }
 
 function baseUrl(): string {
-  const url = process.env.LNBITS_URL
-  if (!url) throw new LnbitsError('server is missing LNBITS_URL')
+  const url = process.env.LNBITS_HOST
+  if (!url) throw new LnbitsError('server is missing LNBITS_HOST')
   return url.replace(/\/$/, '')
 }
 

@@ -12,7 +12,7 @@ function positive(n: unknown): number | null {
 }
 
 async function fromLnbits(): Promise<number | null> {
-  const base = process.env.LNBITS_URL?.replace(/\/$/, '')
+  const base = process.env.LNBITS_HOST?.replace(/\/$/, '')
   if (!base) return null
   const res = await fetch(`${base}/api/v1/rate/KES`, { cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_MS) })
   if (!res.ok) return null
