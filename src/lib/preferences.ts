@@ -2,20 +2,24 @@
 // wrapped: private browsing and some WebViews throw on localStorage access,
 // and the app must still work with the defaults.
 
-export type Preference = 'sound' | 'vibrate' | 'highContrast'
+export type Preference = 'sound' | 'vibrate' | 'highContrast' | 'readAloud'
 
 const KEYS: Record<Preference, string> = {
   sound: 'safaripap.sound',
   vibrate: 'safaripap.vibrate',
   highContrast: 'safaripap.highContrast',
+  readAloud: 'safaripap.readAloud',
 }
 
 // Sound and vibration default to on, matching how alerts behaved before
-// these settings existed. High contrast is opt-in.
+// these settings existed. Reading results aloud defaults on too, so a
+// passenger who can't see the screen still hears the result. High contrast
+// is opt-in.
 const DEFAULTS: Record<Preference, boolean> = {
   sound: true,
   vibrate: true,
   highContrast: false,
+  readAloud: true,
 }
 
 export function getPreference(pref: Preference): boolean {

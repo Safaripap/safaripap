@@ -7,6 +7,7 @@ import { AppHeader } from '@/components/AppHeader'
 import Link from 'next/link'
 import { formatLocalKenyanNumber, isValidKenyanMobile, toLocalKenyanNumber } from '@/lib/phone'
 import { rememberVehicle } from '@/lib/recent-vehicles'
+import { canSpeak, payInstruction, paymentResultMessage, primeSpeech, speak } from '@/lib/speech'
 
 type Screen = 'loading' | 'notFound' | 'amount' | 'phone' | 'waiting' | 'success' | 'error'
 
@@ -36,6 +37,11 @@ export default function PayPage({
   const [transactionCode, setTransactionCode] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<{ mpesa_receipt: string; phone_last3: string; receipt_last3: string } | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
+  // The spoken result, also announced to screen readers; replayed by "Read again".
+  const [resultText, setResultText] = useState('')
+  // Decided after mount: the server can't know, and a mismatch would break hydration.
+  const [speechOk, setSpeechOk] = useState(false)
+  useEffect(() => setSpeechOk(canSpeak()), [])
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // Once the passenger has moved past the first screen, each new screen's
   // heading takes focus, so VoiceOver/TalkBack users hear where they are
@@ -69,7 +75,16 @@ export default function PayPage({
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
+  // The moment a payment finishes: read it aloud and announce it.
+  function announceResult(message: string) {
+    setResultText(message)
+    speak(message)
+  }
+
   async function submitPay() {
+    // Runs inside the tap, which phones require before a page may speak.
+    primeSpeech(payInstruction(fromConductor))
+    setResultText('')
     goTo('waiting')
     try {
       const res = await fetch('/api/pay', {
@@ -108,10 +123,23 @@ export default function PayPage({
           clearInterval(pollRef.current!)
           setReceipt(statusData)
           setScreen('success')
+          announceResult(
+            paymentResultMessage(
+              {
+                paid: true,
+                amountKes: Number(amount),
+                phoneLast3: statusData.phone_last3,
+                receiptLast3: statusData.receipt_last3 || null,
+              },
+              code,
+              fromConductor
+            )
+          )
         } else if (statusData.status === 'failed' || statusData.status === 'payment_failed') {
           clearInterval(pollRef.current!)
           setErrorMsg('Payment did not go through. Please try again.')
           setScreen('error')
+          announceResult(paymentResultMessage({ paid: false, amountKes: Number(amount) }, code, fromConductor))
         }
       }, 2000)
     } catch (err: any) {
@@ -236,6 +264,7 @@ export default function PayPage({
                   </p>
                 </div>
               </div>
+              {speechOk && resultText && <ReadAgainButton text={resultText} />}
             </motion.div>
           )}
 
@@ -246,13 +275,43 @@ export default function PayPage({
               <button onClick={() => goTo('amount')} className="bg-brand-dark text-white font-display font-bold text-xl rounded-2xl px-8 py-3">
                 Try again
               </button>
+              {speechOk && resultText && <ReadAgainButton text={resultText} />}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
+      <p aria-live="assertive" className="sr-only">
+        {resultText}
+      </p>
+
       {fromConductor && <ConductorNav active="prompt" vehicleCode={code} saccoId={searchParams.sacco} />}
     </main>
+  )
+}
+
+// Replays the spoken result on demand, even with reading aloud switched off.
+function ReadAgainButton({ text }: { text: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => speak(text, { force: true, fromTap: true })}
+      className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-brand-dark/15 bg-white px-6 text-lg font-semibold text-brand-dark"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className="h-6 w-6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M11 5 6 9H3v6h3l5 4V5zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" />
+      </svg>
+      Read again
+    </button>
   )
 }
 

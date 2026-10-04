@@ -2,16 +2,22 @@
 
 import { useEffect, useId, useRef, useState } from 'react'
 import { getPreference, setPreference, type Preference } from '@/lib/preferences'
+import { canSpeak, speak } from '@/lib/speech'
 
 // Settings button + panel. The conductor dashboard shows the alert toggles;
-// every screen gets the high-contrast toggle.
+// every screen gets the high-contrast toggle, and "Read results aloud" where
+// the browser can speak.
 export function SettingsMenu({ alerts = false }: { alerts?: boolean }) {
   const [open, setOpen] = useState(false)
   const [prefs, setPrefs] = useState<Record<Preference, boolean>>({
     sound: true,
     vibrate: true,
     highContrast: false,
+    readAloud: true,
   })
+  // Only offer reading aloud where the browser can actually speak; decided
+  // after mount so server and client render the same.
+  const [speechOk, setSpeechOk] = useState(false)
   const panelId = useId()
   const wrapRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -22,7 +28,9 @@ export function SettingsMenu({ alerts = false }: { alerts?: boolean }) {
       sound: getPreference('sound'),
       vibrate: getPreference('vibrate'),
       highContrast: getPreference('highContrast'),
+      readAloud: getPreference('readAloud'),
     })
+    setSpeechOk(canSpeak())
   }, [])
 
   useEffect(() => {
@@ -47,6 +55,7 @@ export function SettingsMenu({ alerts = false }: { alerts?: boolean }) {
   function toggle(pref: Preference, on: boolean) {
     setPreference(pref, on)
     setPrefs((p) => ({ ...p, [pref]: on }))
+    if (on && pref === 'readAloud') speak('Results will be read aloud.', { force: true, fromTap: true })
   }
 
   return (
@@ -92,6 +101,9 @@ export function SettingsMenu({ alerts = false }: { alerts?: boolean }) {
             checked={prefs.highContrast}
             onChange={(on) => toggle('highContrast', on)}
           />
+          {speechOk && (
+            <Switch label="Read results aloud" checked={prefs.readAloud} onChange={(on) => toggle('readAloud', on)} />
+          )}
         </div>
       )}
     </div>
