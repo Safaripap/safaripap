@@ -7,6 +7,7 @@ import type { SaccoForecast } from '@/lib/forecast'
 import { AppHeader } from '@/components/AppHeader'
 import { ManageTabs } from '@/components/manage/ManageTabs'
 import { HourlyBars } from '@/components/manage/HourlyBars'
+import { AiBriefing } from '@/components/manage/AiBriefing'
 import { ROW, TABLE, TablePanel, TD, TH, THEAD } from '@/components/TablePanel'
 
 const hh = (h: number) => `${String(h).padStart(2, '0')}:00`
@@ -20,7 +21,7 @@ async function authHeader(): Promise<Record<string, string> | null> {
 // is tracking. Ported from Nauli Sacco's forecast view.
 export default function ForecastPage() {
   const router = useRouter()
-  const [f, setF] = useState<SaccoForecast | null>(null)
+  const [f, setF] = useState<(SaccoForecast & { aiSummary?: boolean }) | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -79,6 +80,8 @@ export default function ForecastPage() {
                 ))}
               </dl>
             </section>
+
+            {f.aiSummary && <AiBriefing />}
 
             <section className="rounded-2xl border-2 border-brand-dark/10 bg-white p-4">
               <HourlyBars
