@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { collectPayment } from '@/lib/bitika'
+import { startCollection } from '@/lib/collect'
 import { normalizePhoneNumber } from '@/lib/phone'
 import { isDemoPhone, newDemoCode } from '@/lib/demo-phone'
 
 // Called by the passenger PWA once the passenger has entered vehicle code,
-// amount and phone number. Never handles a PIN — Bitika's STK push triggers
+// amount and phone number. Never handles a PIN — the STK push (Bitika, or
+// Daraja if Bitika fails) triggers
 // Safaricom's own PIN prompt on the passenger's phone, outside this app.
 export async function POST(req: NextRequest) {
   const { vehicleCode, amountKes, phone: rawPhone } = await req.json()
@@ -52,24 +53,38 @@ export async function POST(req: NextRequest) {
   const idempotencyKey = randomUUID()
 
   try {
-    const bitikaRes = await collectPayment({
-      amount: String(amountKes),
+    // Bitika first; Daraja STK push if Bitika fails (see lib/collect.ts).
+    const started = await startCollection({
+      amountKes: Number(amountKes),
       phone,
+      vehicleCode: vehicle.vehicle_code,
       lightningAddress: vehicle.lightning_address,
       idempotencyKey,
     })
 
+    const providerFields =
+      started.provider === 'bitika'
+        ? { bitika_transaction_code: started.transactionCode, status: started.status }
+        : {
+            daraja_checkout_id: started.checkoutRequestId,
+            daraja_merchant_request_id: started.merchantRequestId,
+            status: 'processing',
+          }
     const { error: insertError } = await supabaseAdmin.from('transactions').insert({
       vehicle_id: vehicle.id,
       amount_kes: amountKes,
       payer_phone: phone,
-      bitika_transaction_code: bitikaRes.transaction_code,
-      status: bitikaRes.status,
       source: 'pwa',
+      ...providerFields,
     })
-    if (insertError) throw insertError
+    if (insertError) {
+      // The prompt is already on the phone; log enough to reconcile by hand.
+      console.error(`STK sent via ${started.provider} but insert failed`, started, insertError)
+      throw insertError
+    }
 
-    return NextResponse.json({ transactionCode: bitikaRes.transaction_code })
+    const transactionCode = started.provider === 'bitika' ? started.transactionCode : started.checkoutRequestId
+    return NextResponse.json({ transactionCode, provider: started.provider })
   } catch (err: any) {
     console.error('Payment initiation failed:', err)
     return NextResponse.json({ error: 'Could not start payment. Please try again.' }, { status: 502 })

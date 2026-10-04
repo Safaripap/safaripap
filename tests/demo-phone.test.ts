@@ -21,6 +21,7 @@ vi.mock('@/lib/supabase-admin', () => ({
       const b: any = {
         select: () => b,
         eq: (c: string, v: unknown) => ((filters[c] = v), b),
+        or: () => b,
         insert: async (row: any) => (state.inserted.push(row), { error: null }),
         update: (p: any) => ((patch = p), b),
         single: async () =>

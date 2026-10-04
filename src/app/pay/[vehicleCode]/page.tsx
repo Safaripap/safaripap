@@ -11,6 +11,8 @@ import { rememberVehicle } from '@/lib/recent-vehicles'
 type Screen = 'loading' | 'notFound' | 'amount' | 'phone' | 'waiting' | 'success' | 'error'
 
 const POLL_TIMEOUT_MS = 3 * 60 * 1000
+// Daraja sandbox callbacks often never arrive: ask M-Pesa once by ourselves.
+const AUTO_QUERY_AFTER_MS = 30_000
 
 interface Vehicle {
   vehicle_code: string
@@ -81,9 +83,11 @@ export default function PayPage({
       setTransactionCode(data.transactionCode)
 
       // Bitika reports failure as 'failed' (M-Pesa declined or cancelled) or
-      // 'payment_failed' (the Lightning payout failed). Stop waiting after a
+      // 'payment_failed' (the Lightning payout failed); a Daraja-fallback fare
+      // reports 'failed'. Stop waiting after a
       // few minutes so a lost confirmation never leaves the passenger stuck.
       const startedAt = Date.now()
+      let queried = false
       pollRef.current = setInterval(async () => {
         if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
           clearInterval(pollRef.current!)
@@ -92,6 +96,10 @@ export default function PayPage({
           )
           setScreen('error')
           return
+        }
+        if (data.provider === 'daraja' && !queried && Date.now() - startedAt > AUTO_QUERY_AFTER_MS) {
+          queried = true
+          await fetch(`/api/transactions/${data.transactionCode}/query`, { method: 'POST' }).catch(() => undefined)
         }
         const statusRes = await fetch(`/api/transactions/${data.transactionCode}`)
         if (!statusRes.ok) return
