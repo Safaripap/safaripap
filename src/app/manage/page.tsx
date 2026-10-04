@@ -8,6 +8,7 @@ import { dayKey, validateRange, type Insights } from '@/lib/insights'
 import { AppHeader } from '@/components/AppHeader'
 import { DateRangeBar, presetRange, type Range } from '@/components/manage/DateRangeBar'
 import { InsightsView } from '@/components/manage/InsightsView'
+import { ManageTabs } from '@/components/manage/ManageTabs'
 
 interface Me {
   role: MemberRole
@@ -127,6 +128,7 @@ export default function ManagePage() {
 
         {me && range && (
           <>
+            <ManageTabs active="takings" />
             <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
               <div>
                 <p className="text-lg text-brand-dark/70">
