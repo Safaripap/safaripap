@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { applyHighContrast, getPreference, setPreference } from '@/lib/preferences'
+import { applyHighContrast, DISPLAY_BOOT_SCRIPT, getPreference, setPreference } from '@/lib/preferences'
 
 afterEach(() => {
   localStorage.clear()
   delete document.documentElement.dataset.contrast
+  delete document.documentElement.dataset.text
 })
 
 describe('preferences', () => {
@@ -34,6 +35,19 @@ describe('preferences', () => {
       throw new Error('blocked')
     })
     setPreference('highContrast', true)
+    expect(document.documentElement.dataset.contrast).toBe('high')
+  })
+
+  it('defaults reading aloud on and larger text off', () => {
+    expect(getPreference('readAloud')).toBe(true)
+    expect(getPreference('largeText')).toBe(false)
+  })
+
+  it('applies saved display settings before first paint', () => {
+    localStorage.setItem('safaripap.largeText', 'on')
+    localStorage.setItem('safaripap.highContrast', 'on')
+    new Function(DISPLAY_BOOT_SCRIPT)()
+    expect(document.documentElement.dataset.text).toBe('large')
     expect(document.documentElement.dataset.contrast).toBe('high')
   })
 

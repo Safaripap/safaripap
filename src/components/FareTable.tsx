@@ -1,6 +1,7 @@
 import { Highlight } from '@/components/Highlight'
 import { ROW, TABLE, TablePanel, TD, TH, THEAD } from '@/components/TablePanel'
 import { formatWhen, statusOf, type Tone, type Txn } from '@/lib/fares'
+import { spellOut } from '@/lib/speech'
 
 // The conductor's live fare list as a table, in the same Nauli-style panel as
 // the owner and sacco tables. Each row: phone and receipt endings (what the
@@ -78,6 +79,9 @@ export function FareTable({
                       <button
                         type="button"
                         onClick={() => onVerify(r.id)}
+                        aria-label={`Verify: KES ${r.amount_kes}, phone ending ${spellOut(r.phone_last3)}${
+                          r.receipt_last3 ? `, receipt ending ${spellOut(r.receipt_last3)}` : ''
+                        }`}
                         className={`rounded-full px-4 text-base font-semibold ${PILL_CLASSES.wait} border-2 border-wait`}
                       >
                         Verify

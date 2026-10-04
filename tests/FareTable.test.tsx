@@ -56,6 +56,11 @@ describe('FareTable', () => {
     expect(screen.getByLabelText('pending')).toBeTruthy()
   })
 
+  it('names Verify with the fare and spelled-out endings for screen readers', () => {
+    renderTable([fare({})])
+    expect(screen.getByRole('button', { name: 'Verify: KES 50, phone ending 6 7 8, receipt ending F 3 K' })).toBeTruthy()
+  })
+
   it('shows the full receipt for a server receipt search', () => {
     renderTable([fare({ mpesa_receipt: 'TDK4H7XF3K' })])
     expect(screen.getByText(/Receipt/).textContent).toContain('TDK4H7XF3K')

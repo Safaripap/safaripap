@@ -5,8 +5,8 @@ import { getPreference, setPreference, type Preference } from '@/lib/preferences
 import { canSpeak, speak } from '@/lib/speech'
 
 // Settings button + panel. The conductor dashboard shows the alert toggles;
-// every screen gets the high-contrast toggle, and "Read results aloud" where
-// the browser can speak.
+// every screen gets larger text and high contrast, and "Read results aloud"
+// where the browser can speak.
 export function SettingsMenu({ alerts = false }: { alerts?: boolean }) {
   const [open, setOpen] = useState(false)
   const [prefs, setPrefs] = useState<Record<Preference, boolean>>({
@@ -14,6 +14,7 @@ export function SettingsMenu({ alerts = false }: { alerts?: boolean }) {
     vibrate: true,
     highContrast: false,
     readAloud: true,
+    largeText: false,
   })
   // Only offer reading aloud where the browser can actually speak; decided
   // after mount so server and client render the same.
@@ -29,6 +30,7 @@ export function SettingsMenu({ alerts = false }: { alerts?: boolean }) {
       vibrate: getPreference('vibrate'),
       highContrast: getPreference('highContrast'),
       readAloud: getPreference('readAloud'),
+      largeText: getPreference('largeText'),
     })
     setSpeechOk(canSpeak())
   }, [])
@@ -96,6 +98,7 @@ export function SettingsMenu({ alerts = false }: { alerts?: boolean }) {
               <Switch label="Vibrate on new payment" checked={prefs.vibrate} onChange={(on) => toggle('vibrate', on)} />
             </>
           )}
+          <Switch label="Larger text" checked={prefs.largeText} onChange={(on) => toggle('largeText', on)} />
           <Switch
             label="High contrast"
             checked={prefs.highContrast}

@@ -6,6 +6,7 @@ afterEach(() => {
   cleanup()
   localStorage.clear()
   delete document.documentElement.dataset.contrast
+  delete document.documentElement.dataset.text
 })
 
 describe('SettingsMenu', () => {
@@ -15,14 +16,23 @@ describe('SettingsMenu', () => {
     expect(button.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(button)
     expect(button.getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getAllByRole('switch')).toHaveLength(3)
+    expect(screen.getAllByRole('switch')).toHaveLength(4)
   })
 
-  it('shows only high contrast when alerts are not relevant', () => {
+  it('shows only the display switches when alerts are not relevant', () => {
     render(<SettingsMenu />)
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
-    expect(screen.getAllByRole('switch')).toHaveLength(1)
+    expect(screen.getAllByRole('switch')).toHaveLength(2)
+    expect(screen.getByRole('switch', { name: 'Larger text' })).toBeTruthy()
     expect(screen.getByRole('switch', { name: 'High contrast' })).toBeTruthy()
+  })
+
+  it('applies larger text immediately and remembers it', () => {
+    render(<SettingsMenu />)
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Larger text' }))
+    expect(document.documentElement.dataset.text).toBe('large')
+    expect(localStorage.getItem('safaripap.largeText')).toBe('on')
   })
 
   it('defaults sound and vibration on and persists a change', () => {

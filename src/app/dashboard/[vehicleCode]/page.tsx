@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 import { alertFarePaid, enableFareAlerts, fareAlertsEnabled } from '@/lib/fare-alerts'
+import { primeSpeech, speak, spellOut } from '@/lib/speech'
 import { AppHeader } from '@/components/AppHeader'
 import { ConductorNav } from '@/components/ConductorNav'
 import { FareTable } from '@/components/FareTable'
@@ -133,7 +134,10 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
             if (row.status === 'fulfilled' && !row.verified_by_conductor && !announcedIds.current.has(row.id)) {
               announcedIds.current.add(row.id)
               alertFarePaid(row.amount_kes)
-              setAnnouncement(`New payment, KES ${row.amount_kes}, ending ${row.phone_last3}`)
+              // Digits spelled out so they're read "6 7 8", not "six hundred seventy-eight".
+              setAnnouncement(`New payment. KES ${row.amount_kes}. Phone ending ${spellOut(row.phone_last3)}.`)
+              // Spoken aloud too once alerts are on (that tap unlocked speech).
+              if (fareAlertsEnabled()) speak(`Paid ${row.amount_kes} shillings. Phone ending ${spellOut(row.phone_last3)}.`)
               setToast(`Paid: KES ${row.amount_kes}`)
               setTimeout(() => setToast(null), 4000)
             }
@@ -224,11 +228,14 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
   }
 
   async function turnOnAlerts() {
+    primeSpeech('Payment alerts are on.') // inside the tap, so later fares can be spoken
     await enableFareAlerts()
     setAlertsOn(fareAlertsEnabled())
   }
 
   async function verify(id: string) {
+    const fare = visibleRows.find((r) => r.id === id)
+    if (fare) setAnnouncement(`Verified. Phone ending ${spellOut(fare.phone_last3)}.`)
     await supabaseBrowser
       .from('transactions')
       .update({ verified_by_conductor: true, verified_at: new Date().toISOString() })
