@@ -6,6 +6,7 @@
 //   2. Paid Daraja fares the treasury hasn't settled (e.g. LNbits was down):
 //      settle again. Never pays twice (see treasury.ts).
 //   3. Paid fares whose Nostr event never reached a relay: publish again.
+//      Not the generated history on demo matatus, which is never published.
 // Server-only.
 
 import { supabaseAdmin } from './supabase-admin'
@@ -80,13 +81,13 @@ export async function sweep(now: Date = new Date()): Promise<SweepResult> {
   // 3. Paid fares missing their Nostr event.
   const { data: unpublished, error: e3 } = await supabaseAdmin
     .from('transactions')
-    .select('id, amount_kes, is_demo, vehicles(vehicle_code, sacco_id)')
+    .select('id, amount_kes, is_demo, vehicles(vehicle_code, sacco_id, is_demo)')
     .eq('status', 'fulfilled')
     .is('nostr_event_id', null)
     .gte('created_at', since)
   if (e3) result.errors.push(`load unpublished fares: ${e3.message}`)
   for (const t of (unpublished ?? []) as any[]) {
-    if (!t.vehicles) continue
+    if (!t.vehicles || t.vehicles.is_demo) continue
     try {
       await publishPaymentEvent({
         txId: t.id,

@@ -71,7 +71,9 @@ describe('sweep', () => {
   it('re-publishes paid fares whose Nostr event never reached a relay', async () => {
     state.unpublished = [{ id: 't5', amount_kes: 50, is_demo: false, vehicles: { vehicle_code: 'KAB123B', sacco_id: 's1' } }]
     state.publish.mockResolvedValue('ev1')
+    state.unpublished.push({ id: 't6', amount_kes: 60, is_demo: true, vehicles: { vehicle_code: 'KDG214A', sacco_id: 's1', is_demo: true } })
     const r = await sweep()
+    expect(state.publish).toHaveBeenCalledOnce() // never the generated fares on a demo matatu
     expect(state.publish).toHaveBeenCalledWith({ txId: 't5', vehicleCode: 'KAB123B', saccoId: 's1', amountKes: 50, demo: undefined })
     expect(r.republished).toBe(1)
   })
