@@ -46,7 +46,8 @@ create table transactions (
   amount_sats integer,                      -- sats the treasury paid the vehicle
   btc_kes_rate numeric,
   ln_payment_hash text,                     -- treasury settlement claim
-  settled_at timestamptz
+  settled_at timestamptz,
+  nostr_event_id text                       -- the fare's public Nostr event
 );
 
 create index transactions_vehicle_created_idx on transactions (vehicle_id, created_at desc);
@@ -150,3 +151,19 @@ create table if not exists onboarding_requests (
 create index if not exists onboarding_requests_status_idx on onboarding_requests (status, created_at desc);
 
 alter table onboarding_requests enable row level security;
+
+-- Signed daily Nostr report per vehicle (src/lib/nostr-report.ts). Server only.
+create table if not exists nostr_reports (
+  id uuid primary key default gen_random_uuid(),
+  vehicle_id uuid not null references vehicles(id) on delete cascade,
+  report_date date not null,
+  event_id text not null,
+  content_hash text not null,
+  fares integer not null,
+  kes integer not null,
+  sats integer not null,
+  created_at timestamptz default now(),
+  unique (vehicle_id, report_date)
+);
+
+alter table nostr_reports enable row level security;

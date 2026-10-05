@@ -69,10 +69,10 @@ export async function POST(req: NextRequest) {
 
   if (status === 'fulfilled' && txn?.vehicles) {
     await publishPaymentEventSoon({
+      txId: txn.id,
       vehicleCode: txn.vehicles.vehicle_code,
       saccoId: txn.vehicles.sacco_id ?? 'unassigned',
       amountKes: txn.amount_kes,
-      receiptCode: txn.mpesa_receipt ?? '',
     })
   }
 

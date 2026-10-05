@@ -9,12 +9,13 @@ import { AppHeader } from '@/components/AppHeader'
 import { DateRangeBar, presetRange, type Range } from '@/components/manage/DateRangeBar'
 import { InsightsView } from '@/components/manage/InsightsView'
 import { ManageTabs } from '@/components/manage/ManageTabs'
+import { NostrReport } from '@/components/manage/NostrReport'
 
 interface Me {
   role: MemberRole
   fullName: string
   saccoName: string
-  vehicles: { id: string; vehicle_code: string }[]
+  vehicles: { id: string; vehicle_code: string; is_demo?: boolean }[]
 }
 
 async function authHeader(): Promise<Record<string, string> | null> {
@@ -184,6 +185,8 @@ export default function ManagePage() {
             {!insights && !loadError && <p role="status" className="text-brand-dark/70">Loading fares…</p>}
 
             {insights && <InsightsView insights={insights} loading={loading} onPickVehicle={setVehicle} />}
+
+            <NostrReport firstVehicle={me.vehicles.find((v) => !v.is_demo)?.vehicle_code} />
           </>
         )}
       </div>
