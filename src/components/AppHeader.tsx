@@ -10,10 +10,12 @@ export function AppHeader({
   plate,
   alerts = false,
   back,
+  actions,
 }: {
   plate?: string | null
   alerts?: boolean
   back?: { href: string; label: string }
+  actions?: React.ReactNode // extra controls beside settings, e.g. sign out
 }) {
   return (
     <header className="mb-6">
@@ -24,7 +26,10 @@ export function AppHeader({
             <SafaripapLogo size="sm" wordmark={!back} />
           </Link>
         </div>
-        <SettingsMenu alerts={alerts} />
+        <div className="flex shrink-0 items-center gap-2">
+          {actions}
+          <SettingsMenu alerts={alerts} />
+        </div>
       </div>
       {plate && (
         <div className="mt-4">

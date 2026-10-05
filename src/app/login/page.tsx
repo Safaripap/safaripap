@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase-browser'
@@ -17,6 +17,13 @@ export default function LoginPage() {
   const [pin, setPin] = useState('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  // Coming back from the dashboard (signed out, or the session ended), the
+  // vehicle code is already known: fill it in so only the PIN is needed.
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get('vehicle')
+    if (v) setVehicleCode(v.toUpperCase())
+  }, [])
 
   async function signIn(e: React.FormEvent) {
     e.preventDefault()
