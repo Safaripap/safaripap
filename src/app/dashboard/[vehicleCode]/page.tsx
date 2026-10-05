@@ -1,10 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 import { alertFarePaid, enableFareAlerts, fareAlertsEnabled } from '@/lib/fare-alerts'
 import { primeSpeech, speak, spellOut } from '@/lib/speech'
 import { AppHeader } from '@/components/AppHeader'
+import { SignOutButton } from '@/components/SignOutButton'
 import { ConductorNav } from '@/components/ConductorNav'
 import { FareTable } from '@/components/FareTable'
 import {
@@ -59,6 +61,7 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
   const announcedIds = useRef(new Set<string>())
   const listTopRef = useRef<HTMLDivElement>(null)
   const code = params.vehicleCode.toUpperCase()
+  const router = useRouter()
 
   const q = normalizeQuery(query)
   const receiptSearch = q.length >= SERVER_SEARCH_MIN
@@ -87,6 +90,13 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
     let channel: ReturnType<typeof supabaseBrowser.channel>
 
     ;(async () => {
+      // Signed out (or never signed in): RLS would hide the vehicle and this
+      // would wrongly say it doesn't exist. Send them to sign in instead.
+      const { data: auth } = await supabaseBrowser.auth.getSession()
+      if (!auth.session) {
+        router.replace(`/login?vehicle=${code}`)
+        return
+      }
       const { data: vehicle } = await supabaseBrowser
         .from('vehicles')
         .select('id')
@@ -149,7 +159,7 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
     return () => {
       if (channel) supabaseBrowser.removeChannel(channel)
     }
-  }, [code])
+  }, [code, router])
 
   // One page for the current sort, day and ending search.
   const loadPage = useCallback(async () => {
@@ -259,7 +269,12 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
 
   return (
     <main className="min-h-screen p-4 pb-32">
-      <AppHeader plate={code} alerts back={{ href: '/', label: 'Home' }} />
+      <AppHeader
+        plate={code}
+        alerts
+        back={{ href: '/', label: 'Home' }}
+        actions={<SignOutButton onSignedOut={() => router.replace(`/login?vehicle=${code}`)} />}
+      />
 
       <div className="mb-4 flex items-baseline justify-between gap-4">
         <h1 className="font-display text-display-sm">Fares</h1>
