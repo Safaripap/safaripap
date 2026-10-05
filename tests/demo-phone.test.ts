@@ -12,7 +12,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock('@/lib/nostr', () => ({ publishPaymentEventSoon: state.publish }))
 
-vi.mock('@/lib/bitika', () => ({ collectPayment: state.collect }))
+vi.mock('@/lib/daraja', () => ({ stkPush: state.collect }))
 vi.mock('@/lib/supabase-admin', () => ({
   supabaseAdmin: {
     from: (table: string) => {
@@ -50,7 +50,7 @@ beforeEach(() => {
   state.updates = []
   state.collect.mockReset()
   state.publish.mockClear()
-  state.collect.mockResolvedValue({ transaction_code: 'SBX-1', status: 'processing' })
+  state.collect.mockResolvedValue({ checkoutRequestId: 'ws_CO_1', merchantRequestId: 'm-1', customerMessage: '' })
 })
 afterEach(() => vi.unstubAllEnvs())
 
@@ -65,7 +65,7 @@ describe('isDemoPhone', () => {
 })
 
 describe('paying with the demo phone', () => {
-  it('records a demo fare without calling Bitika', async () => {
+  it('records a demo fare without sending an STK push', async () => {
     const res = await payWith('254727358159')
     const body = await res.json()
     expect(state.collect).not.toHaveBeenCalled()
@@ -73,13 +73,27 @@ describe('paying with the demo phone', () => {
     expect(state.inserted[0]).toMatchObject({ status: 'processing', is_demo: true, vehicle_id: 'v1', amount_kes: 50 })
   })
 
-  it('still sends every other number to Bitika', async () => {
+  it('still sends every other number an M-Pesa prompt', async () => {
     await payWith('254712345678')
     expect(state.collect).toHaveBeenCalledOnce()
     expect(state.inserted[0].is_demo).toBeUndefined()
+    expect(state.inserted[0]).toMatchObject({ daraja_checkout_id: 'ws_CO_1', status: 'processing', amount_kes: 50 })
   })
 
-  it('goes to Bitika as normal when DEMO_PHONE is not set', async () => {
+  it('refuses a fare that is not whole shillings from KES 1, without a prompt', async () => {
+    for (const amountKes of [0, 0.5, '50']) {
+      const res = await pay(
+        new NextRequest('http://localhost/api/pay', {
+          method: 'POST',
+          body: JSON.stringify({ vehicleCode: 'KAB123B', amountKes, phone: '254712345678' }),
+        })
+      )
+      expect(res.status).toBe(400)
+    }
+    expect(state.collect).not.toHaveBeenCalled()
+  })
+
+  it('sends the M-Pesa prompt as normal when DEMO_PHONE is not set', async () => {
     vi.stubEnv('DEMO_PHONE', '')
     await payWith('254727358159')
     expect(state.collect).toHaveBeenCalledOnce()

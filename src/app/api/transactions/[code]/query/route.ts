@@ -5,7 +5,7 @@ import { applyStkOutcome } from '@/lib/stk-outcome'
 import { isTransactionCode } from '@/lib/collect'
 
 // STK query fallback for when the Daraja callback never arrives (common in
-// the sandbox). Ported from Nauli Sacco. Only Daraja-fallback fares have
+// the sandbox). Ported from Nauli Sacco. Only Daraja fares have
 // anything to ask; Bitika fares just report their current status.
 export async function POST(_req: NextRequest, { params }: { params: { code: string } }) {
   if (!isTransactionCode(params.code)) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })

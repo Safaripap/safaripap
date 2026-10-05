@@ -10,7 +10,7 @@ import { kesToSats } from './pricing'
 // (the "claim") before paying. A tx with a claim is only ever finished by
 // asking LNbits whether that invoice got paid, or re-paying that same invoice.
 //
-// Ported from Nauli Sacco. Safaripap differences: only Daraja-fallback fares
+// Ported from Nauli Sacco. Safaripap differences: only Daraja fares
 // are settled here (Bitika pays the vehicle's Lightning Address itself), the
 // vehicle's invoice key lives on vehicles.lnbits_invoice_key, and a settled
 // fare keeps status 'fulfilled' with settled_at set, so every screen that

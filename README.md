@@ -100,21 +100,22 @@ Safaripap is not a payments app with Bitcoin attached. The design depends on pro
 ```mermaid
 flowchart TD
     P[Passenger: PWA or USSD] -->|vehicle code, amount, phone| API[/api/pay or /api/ussd/]
-    API -->|POST /collect| B[Bitika]
-    B -->|STK push| M[Passenger's M-Pesa prompt]
-    B -->|sats| L[Vehicle's LNbits wallet]
-    B -->|signed webhook| W[/api/webhooks/bitika/]
+    API -->|STK push| B[Safaricom Daraja]
+    B -->|PIN prompt| M[Passenger's M-Pesa]
+    B -->|result + M-Pesa receipt| W[/api/hooks/payment-result/]
     W -->|update| DB[(Supabase)]
     DB -->|Realtime| D[Conductor dashboard]
     W -->|receipt event| N[Nostr relays]
+    W -->|pay invoice| T[LNbits treasury wallet]
+    T -->|sats| L[Vehicle's LNbits wallet]
 ```
 
 | Step | Stage | Description |
 | :-: | :-- | :-- |
 | 1 | **Initiate** | The passenger opens a vehicle link (`/pay/<vehicleCode>`), typically from a QR code inside the vehicle, or dials a USSD code (`*XXX#`) from any phone. |
-| 2 | **Pay** | They enter the fare and their M-Pesa number. The app calls Bitika's `/collect` endpoint. |
-| 3 | **Settle** | Bitika triggers the M-Pesa STK push, receives the KES payment, converts it, and forwards it as sats to the vehicle's Lightning Address, hosted on our LNbits instance. |
-| 4 | **Verify** | Bitika sends signed webhooks as the payment progresses (`processing_payment` to `fulfilled`, or `failed` / `payment_failed` on decline). The server verifies the HMAC signature on every webhook before updating the transaction in Supabase. |
+| 2 | **Pay** | They enter the fare and their M-Pesa number. The app sends a Daraja STK push, and Safaricom's own PIN prompt appears on their phone. The fare lands in the paybill. |
+| 3 | **Verify** | Daraja calls `/api/hooks/payment-result` (token-checked) with the result and the M-Pesa receipt, and the fare is marked paid or failed. If that callback is slow, the pay page asks Daraja directly after 30 seconds (STK query) and the receipt fills in when the callback lands. |
+| 4 | **Settle** | Once paid, the pre-funded LNbits treasury wallet pays an invoice from the vehicle's wallet for the fare's value in sats (`src/lib/treasury.ts`). A fare is claimed before it's paid, so it is never paid twice; a low treasury leaves it to retry after a top-up. |
 | 5 | **Monitor** | The conductor signs in at `/login` with a vehicle code and PIN. `/dashboard/<vehicleCode>` shows only that vehicle's fares and updates live through Supabase Realtime. |
 | 6 | **Publish** | On a successful payment, a receipt event is published to Nostr relays. |
 | 7 | **Report** | SACCO managers and matatu owners sign in at `/manage/login` with a phone number and PIN. `/manage` shows fare totals for any date range: the period total against the previous period, fares per day, totals per vehicle, and a spreadsheet download. |
@@ -169,7 +170,7 @@ New SACCOs ask to join at `/join`. Safaripap staff review requests in the admin 
 | :-- | :-- | :-- |
 | Application | Next.js 14 (App Router), TypeScript, Tailwind | Passenger PWA, conductor dashboard, API routes |
 | Data | Supabase (Postgres and Realtime) | SACCOs, vehicles, transactions, live dashboard feed |
-| Payments | [Bitika](https://bitika.xyz) | M-Pesa to Lightning bridge |
+| Payments | Safaricom Daraja (M-Pesa STK push) + LNbits treasury | Collects fares in KES, then pays each vehicle in sats. [Bitika](https://bitika.xyz) is still in the code but switched off (see `src/lib/collect.ts`) |
 | Custody | LNbits | One Lightning wallet and Lightning Address per vehicle |
 | Transparency | Nostr | Public payment receipt events |
 | Access | Africa's Talking | USSD channel for passengers without smartphones |
@@ -197,7 +198,8 @@ src/
     api/
       pay/route.ts                      PWA payment initiation
       ussd/route.ts                     Africa's Talking USSD webhook
-      webhooks/bitika/route.ts          Bitika status webhook (signature-verified)
+      hooks/payment-result/route.ts     Daraja STK callback (token-checked)
+      webhooks/bitika/route.ts          Bitika status webhook (Bitika is switched off)
       transactions/[code]/route.ts      Status polling for the PWA
       vehicles/[code]/route.ts          Vehicle lookup
       dashboard/search/route.ts         Full-receipt search for conductors
@@ -206,7 +208,11 @@ src/
       admin/                            Staff APIs (passcode session)
   components/                           Shared UI (logo, header, nav, settings, charts)
   lib/
-    bitika.ts                           Bitika API client
+    collect.ts                          Starts a fare's M-Pesa collection (Daraja)
+    daraja.ts                           Daraja STK push, query and callback parsing
+    stk-outcome.ts                      Applies an STK result: paid, receipt, settle
+    treasury.ts                         Pays vehicles their sats from the treasury
+    bitika.ts                           Bitika API client (switched off)
     lnbits.ts                           LNbits wallets and Lightning Addresses
     onboarding.ts                       Onboard a vehicle end to end
     members.ts                          Manager and owner accounts and access
@@ -233,8 +239,13 @@ tests/                                  Vitest unit and route tests
 | `NEXT_PUBLIC_SUPABASE_URL` | Client and server | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client | Supabase anon (public) key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server only | Full-access key. Never expose to the browser |
-| `BITIKA_API_KEY` | Server only | Issued from the Bitika developer portal |
-| `BITIKA_WEBHOOK_SECRET` | Server only | Signing secret for the registered webhook endpoint. Regenerates if the endpoint is edited or re-added |
+| `DARAJA_BASE_URL`, `DARAJA_CONSUMER_KEY`, `DARAJA_CONSUMER_SECRET`, `DARAJA_SHORTCODE`, `DARAJA_PASSKEY` | Server only | Safaricom Daraja app credentials and paybill (see `.env.example`) |
+| `DARAJA_CALLBACK_BASE_URL` | Server only | Public HTTPS address Daraja calls back to, normally the production URL |
+| `DARAJA_CALLBACK_TOKEN` | Server only | Long random string checked on every callback |
+| `LNBITS_TREASURY_ADMIN_KEY` | Server only | Admin key of the pre-funded treasury wallet that pays vehicles their sats |
+| `BTC_KES_FALLBACK`, `DEMO_SATS_PER_KES` | Server only | KES/BTC rate if the live price is down; optional fixed sats per KES for demos |
+| `ANTHROPIC_API_KEY` | Server only | Optional. Enables the Claude-written summary on the Forecast tab |
+| `BITIKA_API_KEY`, `BITIKA_WEBHOOK_SECRET` | Server only | Unused while Bitika is switched off |
 | `LNBITS_HOST` | Server only | Your LNbits instance, e.g. `https://your-instance.lnbits.com` |
 | `LNBITS_ADMIN_KEY` | Server only | Admin key of the super user's wallet. Every vehicle wallet is created under the same account |
 | `LNBITS_ACCESS_TOKEN` | Server only | Account access token (from an LNbits access control list) allowed to create wallets. LNbits 1.x refuses a wallet admin key for this |

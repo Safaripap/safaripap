@@ -35,7 +35,7 @@ export default function PayPage({
   // The 9 digits after +254, e.g. "712345678".
   const [phone, setPhone] = useState('')
   const [transactionCode, setTransactionCode] = useState<string | null>(null)
-  const [receipt, setReceipt] = useState<{ mpesa_receipt: string; phone_last3: string; receipt_last3: string } | null>(null)
+  const [receipt, setReceipt] = useState<{ mpesa_receipt: string | null; phone_last3: string; receipt_last3: string } | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
   // The spoken result, also announced to screen readers; replayed by "Read again".
   const [resultText, setResultText] = useState('')
@@ -97,15 +97,19 @@ export default function PayPage({
 
       setTransactionCode(data.transactionCode)
 
-      // Bitika reports failure as 'failed' (M-Pesa declined or cancelled) or
-      // 'payment_failed' (the Lightning payout failed); a Daraja-fallback fare
-      // reports 'failed'. Stop waiting after a
-      // few minutes so a lost confirmation never leaves the passenger stuck.
+      // A declined or cancelled prompt reports 'failed' ('payment_failed' was
+      // Bitika's Lightning payout failing). Stop waiting after a few minutes so
+      // a lost confirmation never leaves the passenger stuck.
+      // As on Nauli Sacco, a fare can be paid before its M-Pesa receipt is
+      // known (the STK query has no receipt; Daraja's callback brings it), so
+      // the success screen keeps listening until the receipt arrives.
       const startedAt = Date.now()
       let queried = false
+      let paid = false
       pollRef.current = setInterval(async () => {
         if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
           clearInterval(pollRef.current!)
+          if (paid) return // paid; the receipt just never came
           setErrorMsg(
             'We didn’t get a confirmation in time. If M-Pesa took the money, show the conductor your M-Pesa message. Otherwise, try again.'
           )
@@ -120,8 +124,10 @@ export default function PayPage({
         if (!statusRes.ok) return
         const statusData = await statusRes.json()
         if (statusData.status === 'fulfilled') {
-          clearInterval(pollRef.current!)
           setReceipt(statusData)
+          if (statusData.receipt_last3) clearInterval(pollRef.current!)
+          if (paid) return // already announced; this just fills in the receipt
+          paid = true
           setScreen('success')
           announceResult(
             paymentResultMessage(
@@ -190,7 +196,7 @@ export default function PayPage({
                 className="w-full font-display text-display text-center bg-transparent border-b-4 border-brand-dark/15 py-4 mb-8 focus:border-brand outline-none"
               />
               <button
-                disabled={!amount || amount < 10}
+                disabled={!amount || amount < 1}
                 onClick={() => goTo('phone')}
                 className="w-full bg-brand text-white font-display font-bold text-2xl rounded-2xl py-4 disabled:opacity-30 disabled:cursor-not-allowed"
               >
@@ -255,12 +261,17 @@ export default function PayPage({
                 <h1 ref={focusHeading} tabIndex={-1} className="focus:outline-none font-display text-display-sm mb-4">KES {amount} paid</h1>
                 <div className="border-t border-dashed border-brand-dark/15 pt-4 text-left space-y-2">
                   <p className="text-brand-dark/70">
-                    Receipt <span className="font-semibold text-brand-dark tabular-nums">{receipt?.mpesa_receipt}</span>
+                    Receipt{' '}
+                    {receipt?.mpesa_receipt ? (
+                      <span className="font-semibold text-brand-dark tabular-nums">{receipt.mpesa_receipt}</span>
+                    ) : (
+                      <span role="status">arriving shortly…</span>
+                    )}
                   </p>
                   <p className="text-lg text-brand-dark">
                     Tell the conductor: phone ending{' '}
                     <strong className="font-display tabular-nums">{receipt?.phone_last3}</strong>, receipt ending{' '}
-                    <strong className="font-display tabular-nums">{receipt?.receipt_last3}</strong>
+                    <strong className="font-display tabular-nums">{receipt?.receipt_last3 || '—'}</strong>
                   </p>
                 </div>
               </div>

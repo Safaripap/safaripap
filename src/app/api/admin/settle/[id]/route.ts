@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isAdmin } from '@/lib/admin-auth'
 import { settleTransaction } from '@/lib/treasury'
 
-// Manual settlement retry for a Daraja-fallback fare (e.g. after topping up a
+// Manual settlement retry for a Daraja fare (e.g. after topping up a
 // low treasury). Ported from Nauli Sacco; guarded by the admin session here
 // instead of Nauli's demo PIN.
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {

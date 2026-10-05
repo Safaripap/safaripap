@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { startCollection } from '@/lib/collect'
+import { collectionFields, startCollection, transactionCodeOf } from '@/lib/collect'
 import { normalizePhoneNumber } from '@/lib/phone'
 import { isDemoPhone, newDemoCode } from '@/lib/demo-phone'
 
 // Called by the passenger PWA once the passenger has entered vehicle code,
-// amount and phone number. Never handles a PIN — the STK push (Bitika, or
-// Daraja if Bitika fails) triggers
+// amount and phone number. Never handles a PIN — the Daraja STK push triggers
 // Safaricom's own PIN prompt on the passenger's phone, outside this app.
 export async function POST(req: NextRequest) {
   const { vehicleCode, amountKes, phone: rawPhone } = await req.json()
@@ -15,6 +14,10 @@ export async function POST(req: NextRequest) {
 
   if (!vehicleCode || !amountKes || !phone) {
     return NextResponse.json({ error: 'vehicleCode, amountKes and phone are required' }, { status: 400 })
+  }
+  // Daraja takes whole shillings, from KES 1.
+  if (!Number.isInteger(amountKes) || amountKes < 1) {
+    return NextResponse.json({ error: 'Enter the fare in whole shillings, from KES 1' }, { status: 400 })
   }
   if (!/^254[71]\d{8}$/.test(phone)) {
     return NextResponse.json({ error: 'Enter a Kenyan mobile number, like 0712 345 678' }, { status: 400 })
@@ -53,7 +56,7 @@ export async function POST(req: NextRequest) {
   const idempotencyKey = randomUUID()
 
   try {
-    // Bitika first; Daraja STK push if Bitika fails (see lib/collect.ts).
+    // Daraja STK push (Bitika is switched off; see lib/collect.ts).
     const started = await startCollection({
       amountKes: Number(amountKes),
       phone,
@@ -62,20 +65,12 @@ export async function POST(req: NextRequest) {
       idempotencyKey,
     })
 
-    const providerFields =
-      started.provider === 'bitika'
-        ? { bitika_transaction_code: started.transactionCode, status: started.status }
-        : {
-            daraja_checkout_id: started.checkoutRequestId,
-            daraja_merchant_request_id: started.merchantRequestId,
-            status: 'processing',
-          }
     const { error: insertError } = await supabaseAdmin.from('transactions').insert({
       vehicle_id: vehicle.id,
       amount_kes: amountKes,
       payer_phone: phone,
       source: 'pwa',
-      ...providerFields,
+      ...collectionFields(started),
     })
     if (insertError) {
       // The prompt is already on the phone; log enough to reconcile by hand.
@@ -83,8 +78,7 @@ export async function POST(req: NextRequest) {
       throw insertError
     }
 
-    const transactionCode = started.provider === 'bitika' ? started.transactionCode : started.checkoutRequestId
-    return NextResponse.json({ transactionCode, provider: started.provider })
+    return NextResponse.json({ transactionCode: transactionCodeOf(started), provider: started.provider })
   } catch (err: any) {
     console.error('Payment initiation failed:', err)
     return NextResponse.json({ error: 'Could not start payment. Please try again.' }, { status: 502 })

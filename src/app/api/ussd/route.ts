@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { collectPayment } from '@/lib/bitika'
+// import { collectPayment } from '@/lib/bitika' // Bitika is switched off; see lib/collect.ts
+import { collectionFields, startCollection } from '@/lib/collect'
 import { normalizePhoneNumber } from '@/lib/phone'
 
 // Africa's Talking USSD webhook. No SDK needed to receive this — it's a plain
@@ -53,11 +54,19 @@ export async function POST(req: NextRequest) {
         amountKes = parseInt(parts[2], 10)
       }
 
-      if (vehicle && !vehicle.is_demo && amountKes && amountKes >= 10) {
+      if (vehicle && !vehicle.is_demo && amountKes && amountKes >= 1) {
         const idempotencyKey = randomUUID()
-        const bitikaRes = await collectPayment({
-          amount: String(amountKes),
+        // Bitika (disabled): see lib/collect.ts to switch it back on.
+        // const bitikaRes = await collectPayment({
+        //   amount: String(amountKes),
+        //   phone: phoneNumber,
+        //   lightningAddress: vehicle.lightning_address,
+        //   idempotencyKey,
+        // })
+        const started = await startCollection({
+          amountKes,
           phone: phoneNumber,
+          vehicleCode: vehicle.vehicle_code,
           lightningAddress: vehicle.lightning_address,
           idempotencyKey,
         })
@@ -65,9 +74,8 @@ export async function POST(req: NextRequest) {
           vehicle_id: vehicle.id,
           amount_kes: amountKes,
           payer_phone: phoneNumber,
-          bitika_transaction_code: bitikaRes.transaction_code,
-          status: bitikaRes.status,
           source: 'ussd',
+          ...collectionFields(started),
         })
         response =
           'END Payment request sent. Enter your M-Pesa PIN on the prompt on your phone to complete it. You will get an SMS confirmation.'

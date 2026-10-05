@@ -7,7 +7,7 @@ import { isTransactionCode } from '@/lib/collect'
 // The PWA polls this every couple of seconds after initiating a payment, so it
 // never talks to Bitika or Daraja directly — it just reads our own DB, which
 // the Bitika webhook and the Daraja callback keep up to date. `code` is the
-// Bitika transaction code or, for a Daraja-fallback fare, its CheckoutRequestID.
+// Bitika transaction code or, for a Daraja fare, its CheckoutRequestID.
 export async function GET(_req: NextRequest, { params }: { params: { code: string } }) {
   if (!isTransactionCode(params.code)) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
   const { data, error } = await supabaseAdmin
