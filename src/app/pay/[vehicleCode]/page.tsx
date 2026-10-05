@@ -209,6 +209,16 @@ export default function PayPage({
 
           {screen === 'phone' && (
             <motion.div key="phone" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full max-w-sm">
+              <button
+                type="button"
+                onClick={() => goTo('amount')}
+                className="mb-6 inline-flex items-center gap-1 rounded-xl border-2 border-brand-dark/15 bg-white pl-2 pr-3 text-base font-semibold text-brand-dark"
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="m15 6-6 6 6 6" />
+                </svg>
+                Change fare (KES {amount})
+              </button>
               <h1 ref={focusHeading} tabIndex={-1} className="focus:outline-none font-display text-display-sm mb-1">Your M-Pesa number</h1>
               <p className="text-lg text-brand-dark/60 mb-8">We'll send an STK prompt to this number.</p>
               <label htmlFor="phone" className="sr-only">M-Pesa phone number, after the +254 country code</label>

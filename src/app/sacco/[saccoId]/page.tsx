@@ -68,7 +68,7 @@ export default function SaccoPage({ params }: { params: { saccoId: string } }) {
 
   return (
     <main className="min-h-screen p-6 pb-10">
-      <AppHeader />
+      <AppHeader back={{ href: '/', label: 'Home' }} />
 
       <div className="flex items-baseline justify-between gap-4 mb-1">
         <h1 className="text-lg text-brand-dark/70">Sacco fares today</h1>

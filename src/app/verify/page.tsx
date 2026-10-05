@@ -84,7 +84,7 @@ export default function VerifyPage() {
   return (
     <main className="min-h-screen p-4 pb-16 sm:p-8">
       <div className="mx-auto max-w-3xl">
-        <AppHeader />
+        <AppHeader back={{ href: '/', label: 'Home' }} />
         <h1 className="font-display text-display-sm">Check a day&apos;s fares</h1>
         <p className="mt-2 text-lg text-brand-dark/70">
           Every night Safaripap signs a report of each matatu&apos;s paid fares and publishes it on Nostr, a public

@@ -20,7 +20,7 @@ export default function SignInChooserPage() {
   return (
     <main className="min-h-screen px-6 pt-8 pb-10">
       <div className="mx-auto max-w-md">
-        <AppHeader />
+        <AppHeader back={{ href: '/', label: 'Home' }} />
         <h1 className="font-display text-display-sm mb-8">Sign in</h1>
         <ul className="space-y-3">
           {OPTIONS.map((o) => (
