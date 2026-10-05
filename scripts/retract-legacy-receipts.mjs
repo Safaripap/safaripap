@@ -15,7 +15,15 @@ import { finalizeEvent, getPublicKey } from 'nostr-tools/pure'
 import { hexToBytes } from '@noble/hashes/utils'
 import WebSocket from 'ws'
 
-useWebSocketImplementation(WebSocket)
+// A relay that times out makes ws emit 'error' after nostr-tools has given up
+// on it; swallow that so one unreachable relay can't crash the script.
+class QuietWebSocket extends WebSocket {
+  constructor(...args) {
+    super(...args)
+    this.on('error', () => {})
+  }
+}
+useWebSocketImplementation(QuietWebSocket)
 const RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']
 const publish = process.argv.includes('--publish')
 
