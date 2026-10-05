@@ -210,7 +210,7 @@ export default function HomePage() {
           </nav>
         </div>
         <div className="mt-10 space-y-1 border-t-2 border-brand-dark/10 pt-6 text-sm text-brand-dark/70">
-          <p>Payments by Bitika · Built for Hack4Freedom 2026</p>
+          <p>Payments by M-Pesa · Settled in sats over Lightning · Built for Hack4Freedom 2026</p>
           <p>
             M-Pesa is a trademark of Safaricom PLC; Safaripap is not affiliated with Safaricom. Photos from Pexels by
             Volker Morr, JimmyJimmy and benedict buston.

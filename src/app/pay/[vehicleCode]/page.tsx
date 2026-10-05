@@ -7,10 +7,13 @@ import { AppHeader } from '@/components/AppHeader'
 import Link from 'next/link'
 import { formatLocalKenyanNumber, isValidKenyanMobile, toLocalKenyanNumber } from '@/lib/phone'
 import { rememberVehicle } from '@/lib/recent-vehicles'
+import { canSpeak, payInstruction, paymentResultMessage, primeSpeech, speak } from '@/lib/speech'
 
 type Screen = 'loading' | 'notFound' | 'amount' | 'phone' | 'waiting' | 'success' | 'error'
 
 const POLL_TIMEOUT_MS = 3 * 60 * 1000
+// Daraja sandbox callbacks often never arrive: ask M-Pesa once by ourselves.
+const AUTO_QUERY_AFTER_MS = 30_000
 
 interface Vehicle {
   vehicle_code: string
@@ -22,7 +25,7 @@ export default function PayPage({
   searchParams,
 }: {
   params: { vehicleCode: string }
-  searchParams: { from?: string; sacco?: string }
+  searchParams: { from?: string }
 }) {
   // Passengers arrive from the QR sticker and see no nav. A conductor who
   // opened this from the dashboard to prompt a passenger gets the nav back.
@@ -32,8 +35,13 @@ export default function PayPage({
   // The 9 digits after +254, e.g. "712345678".
   const [phone, setPhone] = useState('')
   const [transactionCode, setTransactionCode] = useState<string | null>(null)
-  const [receipt, setReceipt] = useState<{ mpesa_receipt: string; phone_last3: string; receipt_last3: string } | null>(null)
+  const [receipt, setReceipt] = useState<{ mpesa_receipt: string | null; phone_last3: string; receipt_last3: string } | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
+  // The spoken result, also announced to screen readers; replayed by "Read again".
+  const [resultText, setResultText] = useState('')
+  // Decided after mount: the server can't know, and a mismatch would break hydration.
+  const [speechOk, setSpeechOk] = useState(false)
+  useEffect(() => setSpeechOk(canSpeak()), [])
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // Once the passenger has moved past the first screen, each new screen's
   // heading takes focus, so VoiceOver/TalkBack users hear where they are
@@ -67,7 +75,16 @@ export default function PayPage({
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
+  // The moment a payment finishes: read it aloud and announce it.
+  function announceResult(message: string) {
+    setResultText(message)
+    speak(message)
+  }
+
   async function submitPay() {
+    // Runs inside the tap, which phones require before a page may speak.
+    primeSpeech(payInstruction(fromConductor))
+    setResultText('')
     goTo('waiting')
     try {
       const res = await fetch('/api/pay', {
@@ -80,30 +97,57 @@ export default function PayPage({
 
       setTransactionCode(data.transactionCode)
 
-      // Bitika reports failure as 'failed' (M-Pesa declined or cancelled) or
-      // 'payment_failed' (the Lightning payout failed). Stop waiting after a
-      // few minutes so a lost confirmation never leaves the passenger stuck.
+      // A declined or cancelled prompt reports 'failed' ('payment_failed' was
+      // Bitika's Lightning payout failing). Stop waiting after a few minutes so
+      // a lost confirmation never leaves the passenger stuck.
+      // As on Nauli Sacco, a fare can be paid before its M-Pesa receipt is
+      // known (the STK query has no receipt; Daraja's callback brings it), so
+      // the success screen keeps listening until the receipt arrives.
       const startedAt = Date.now()
+      let queried = false
+      let paid = false
       pollRef.current = setInterval(async () => {
         if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
           clearInterval(pollRef.current!)
+          if (paid) return // paid; the receipt just never came
           setErrorMsg(
             'We didn’t get a confirmation in time. If M-Pesa took the money, show the conductor your M-Pesa message. Otherwise, try again.'
           )
           setScreen('error')
           return
         }
+        if (data.provider === 'daraja' && !queried && Date.now() - startedAt > AUTO_QUERY_AFTER_MS) {
+          queried = true
+          // Not awaited: the query marks the fare paid before it publishes the
+          // receipt and settles sats, so the next poll can show success at once.
+          fetch(`/api/transactions/${data.transactionCode}/query`, { method: 'POST' }).catch(() => undefined)
+        }
         const statusRes = await fetch(`/api/transactions/${data.transactionCode}`)
         if (!statusRes.ok) return
         const statusData = await statusRes.json()
         if (statusData.status === 'fulfilled') {
-          clearInterval(pollRef.current!)
           setReceipt(statusData)
+          if (statusData.receipt_last3) clearInterval(pollRef.current!)
+          if (paid) return // already announced; this just fills in the receipt
+          paid = true
           setScreen('success')
+          announceResult(
+            paymentResultMessage(
+              {
+                paid: true,
+                amountKes: Number(amount),
+                phoneLast3: statusData.phone_last3,
+                receiptLast3: statusData.receipt_last3 || null,
+              },
+              code,
+              fromConductor
+            )
+          )
         } else if (statusData.status === 'failed' || statusData.status === 'payment_failed') {
           clearInterval(pollRef.current!)
           setErrorMsg('Payment did not go through. Please try again.')
           setScreen('error')
+          announceResult(paymentResultMessage({ paid: false, amountKes: Number(amount) }, code, fromConductor))
         }
       }, 2000)
     } catch (err: any) {
@@ -154,7 +198,7 @@ export default function PayPage({
                 className="w-full font-display text-display text-center bg-transparent border-b-4 border-brand-dark/15 py-4 mb-8 focus:border-brand outline-none"
               />
               <button
-                disabled={!amount || amount < 10}
+                disabled={!amount || amount < 1}
                 onClick={() => goTo('phone')}
                 className="w-full bg-brand text-white font-display font-bold text-2xl rounded-2xl py-4 disabled:opacity-30 disabled:cursor-not-allowed"
               >
@@ -219,15 +263,21 @@ export default function PayPage({
                 <h1 ref={focusHeading} tabIndex={-1} className="focus:outline-none font-display text-display-sm mb-4">KES {amount} paid</h1>
                 <div className="border-t border-dashed border-brand-dark/15 pt-4 text-left space-y-2">
                   <p className="text-brand-dark/70">
-                    Receipt <span className="font-semibold text-brand-dark tabular-nums">{receipt?.mpesa_receipt}</span>
+                    Receipt{' '}
+                    {receipt?.mpesa_receipt ? (
+                      <span className="font-semibold text-brand-dark tabular-nums">{receipt.mpesa_receipt}</span>
+                    ) : (
+                      <span role="status">arriving shortly…</span>
+                    )}
                   </p>
                   <p className="text-lg text-brand-dark">
                     Tell the conductor: phone ending{' '}
                     <strong className="font-display tabular-nums">{receipt?.phone_last3}</strong>, receipt ending{' '}
-                    <strong className="font-display tabular-nums">{receipt?.receipt_last3}</strong>
+                    <strong className="font-display tabular-nums">{receipt?.receipt_last3 || '—'}</strong>
                   </p>
                 </div>
               </div>
+              {speechOk && resultText && <ReadAgainButton text={resultText} />}
             </motion.div>
           )}
 
@@ -238,13 +288,43 @@ export default function PayPage({
               <button onClick={() => goTo('amount')} className="bg-brand-dark text-white font-display font-bold text-xl rounded-2xl px-8 py-3">
                 Try again
               </button>
+              {speechOk && resultText && <ReadAgainButton text={resultText} />}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {fromConductor && <ConductorNav active="prompt" vehicleCode={code} saccoId={searchParams.sacco} />}
+      <p aria-live="assertive" className="sr-only">
+        {resultText}
+      </p>
+
+      {fromConductor && <ConductorNav active="prompt" vehicleCode={code} />}
     </main>
+  )
+}
+
+// Replays the spoken result on demand, even with reading aloud switched off.
+function ReadAgainButton({ text }: { text: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => speak(text, { force: true, fromTap: true })}
+      className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-brand-dark/15 bg-white px-6 text-lg font-semibold text-brand-dark"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className="h-6 w-6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M11 5 6 9H3v6h3l5 4V5zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" />
+      </svg>
+      Read again
+    </button>
   )
 }
 

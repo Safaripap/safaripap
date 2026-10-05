@@ -2,15 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { DEMO_SETTLE_MS, demoReceipt, isDemoCode } from '@/lib/demo-phone'
 import { publishPaymentEventSoon } from '@/lib/nostr'
+import { isTransactionCode } from '@/lib/collect'
 
 // The PWA polls this every couple of seconds after initiating a payment, so it
-// never talks to Bitika directly — it just reads our own DB, which the Bitika
-// webhook keeps up to date.
+// never talks to Bitika or Daraja directly — it just reads our own DB, which
+// the Bitika webhook and the Daraja callback keep up to date. `code` is the
+// Bitika transaction code or, for a Daraja fare, its CheckoutRequestID.
 export async function GET(_req: NextRequest, { params }: { params: { code: string } }) {
+  if (!isTransactionCode(params.code)) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
   const { data, error } = await supabaseAdmin
     .from('transactions')
     .select('status, amount_kes, mpesa_receipt, phone_last3, receipt_last3, created_at')
-    .eq('bitika_transaction_code', params.code)
+    .or(`bitika_transaction_code.eq.${params.code},daraja_checkout_id.eq.${params.code}`)
     .single()
 
   if (error || !data) {

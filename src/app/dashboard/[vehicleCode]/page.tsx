@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 import { alertFarePaid, enableFareAlerts, fareAlertsEnabled } from '@/lib/fare-alerts'
+import { primeSpeech, speak, spellOut } from '@/lib/speech'
 import { AppHeader } from '@/components/AppHeader'
 import { ConductorNav } from '@/components/ConductorNav'
-import { Highlight } from '@/components/Highlight'
+import { FareTable } from '@/components/FareTable'
 import {
   DEFAULT_VIEW,
   dayOptions,
@@ -26,12 +27,6 @@ import {
 
 type LoadState = 'loading' | 'notFound' | 'ready'
 
-const PILL_CLASSES: Record<Tone, string> = {
-  route: 'bg-route-light text-route',
-  wait: 'bg-wait-light text-wait-ink',
-  neutral: 'bg-brand-dark/5 text-brand-dark/70',
-}
-
 const SELECT_CLASSES =
   'w-full min-h-[3.25rem] rounded-xl border-2 border-brand-dark/15 bg-white px-3 text-lg text-brand-dark focus:border-brand outline-none'
 
@@ -45,7 +40,6 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [alertsOn, setAlertsOn] = useState(false)
   const [connected, setConnected] = useState(false)
-  const [saccoId, setSaccoId] = useState<string | null>(null)
   // Rows that just arrived, flashed with a tint of their status colour. The
   // class is removed a frame later and the background transitions back.
   const [fresh, setFresh] = useState<Record<string, Tone>>({})
@@ -95,14 +89,13 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
     ;(async () => {
       const { data: vehicle } = await supabaseBrowser
         .from('vehicles')
-        .select('id, sacco_id')
+        .select('id')
         .eq('vehicle_code', code)
         .single()
       if (!vehicle) {
         setLoadState('notFound')
         return
       }
-      setSaccoId(vehicle.sacco_id)
       setVehicleId(vehicle.id)
 
       // React Strict Mode runs this effect twice in dev. If a channel with this
@@ -141,7 +134,10 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
             if (row.status === 'fulfilled' && !row.verified_by_conductor && !announcedIds.current.has(row.id)) {
               announcedIds.current.add(row.id)
               alertFarePaid(row.amount_kes)
-              setAnnouncement(`New payment, KES ${row.amount_kes}, ending ${row.phone_last3}`)
+              // Digits spelled out so they're read "6 7 8", not "six hundred seventy-eight".
+              setAnnouncement(`New payment. KES ${row.amount_kes}. Phone ending ${spellOut(row.phone_last3)}.`)
+              // Spoken aloud too once alerts are on (that tap unlocked speech).
+              if (fareAlertsEnabled()) speak(`Paid ${row.amount_kes} shillings. Phone ending ${spellOut(row.phone_last3)}.`)
               setToast(`Paid: KES ${row.amount_kes}`)
               setTimeout(() => setToast(null), 4000)
             }
@@ -232,11 +228,14 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
   }
 
   async function turnOnAlerts() {
+    primeSpeech('Payment alerts are on.') // inside the tap, so later fares can be spoken
     await enableFareAlerts()
     setAlertsOn(fareAlertsEnabled())
   }
 
   async function verify(id: string) {
+    const fare = visibleRows.find((r) => r.id === id)
+    if (fare) setAnnouncement(`Verified. Phone ending ${spellOut(fare.phone_last3)}.`)
     await supabaseBrowser
       .from('transactions')
       .update({ verified_by_conductor: true, verified_at: new Date().toISOString() })
@@ -412,72 +411,14 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
 
       {loadState === 'ready' && visibleRows.length > 0 && (
         <>
-          <div
-            aria-hidden="true"
-            className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_7rem_9rem_12rem] gap-x-4 px-4 pb-2 text-sm text-brand-dark/60"
-          >
-            <span>Phone / receipt</span>
-            <span>Fare</span>
-            <span>Time</span>
-            <span className="text-right">Status</span>
-          </div>
-          <ul className={`space-y-2 ${busy ? 'opacity-60' : ''}`} aria-busy={busy}>
-            {visibleRows.map((r) => {
-              const status = statusOf(r)
-              const canVerify = !r.verified_by_conductor && r.status === 'fulfilled'
-              const receipt = r.receipt_last3
-              const localQuery = receiptSearch ? '' : q
-              const tint = fresh[r.id]
-              const rowClass = `motion-row-highlight w-full text-left p-4 rounded-xl bg-white border-2 border-brand-dark/10 grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_7rem_9rem_12rem] gap-x-4 gap-y-1 items-center ${
-                tint ? `is-new-${tint}` : ''
-              }`
-              const cells = (
-                <>
-                  <span className="font-display text-3xl font-bold tabular-nums text-brand-dark break-words">
-                    <span className="sr-only">Phone ending </span>
-                    <Highlight text={r.phone_last3} query={localQuery} />
-                    <span aria-hidden="true" className="mx-2 text-brand-dark/30">/</span>
-                    <span className="sr-only">, receipt ending </span>
-                    {receipt ? (
-                      <Highlight text={receipt} query={localQuery} />
-                    ) : (
-                      <span className="text-brand-dark/30" aria-label="pending">—</span>
-                    )}
-                  </span>
-                  <span className="col-start-1 flex flex-wrap gap-x-3 sm:contents">
-                    <span className="font-body font-semibold text-lg text-brand-dark">KES {r.amount_kes}</span>
-                    <span className="text-lg tabular-nums text-brand-dark/70">{formatWhen(r.created_at)}</span>
-                  </span>
-                  {r.mpesa_receipt && (
-                    <span className="col-start-1 sm:col-span-3 text-base text-brand-dark/70 tabular-nums break-all">
-                      Receipt{' '}
-                      <span className="font-semibold text-brand-dark">
-                        <Highlight text={r.mpesa_receipt} query={q} suffix />
-                      </span>
-                    </span>
-                  )}
-                  <span className="col-start-2 row-start-1 row-span-2 sm:col-start-4 sm:row-span-1 justify-self-end">
-                    <span
-                      className={`inline-block rounded-full px-3 py-1 text-base font-semibold text-center ${PILL_CLASSES[status.tone]}`}
-                    >
-                      {status.label}
-                    </span>
-                  </span>
-                </>
-              )
-              return (
-                <li key={r.id}>
-                  {canVerify ? (
-                    <button onClick={() => verify(r.id)} className={rowClass}>
-                      {cells}
-                    </button>
-                  ) : (
-                    <div className={rowClass}>{cells}</div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
+          <FareTable
+            rows={visibleRows}
+            query={receiptSearch ? '' : q}
+            fullReceiptQuery={q}
+            fresh={fresh}
+            busy={busy}
+            onVerify={verify}
+          />
 
           {!receiptSearch && pageCount > 1 && (
             <nav aria-label="Fare pages" className="mt-4 flex items-center justify-between gap-2">
@@ -503,7 +444,7 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
         </>
       )}
 
-      <ConductorNav active="fares" vehicleCode={code} saccoId={saccoId} />
+      <ConductorNav active="fares" vehicleCode={code} />
     </main>
   )
 }

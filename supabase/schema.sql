@@ -38,7 +38,15 @@ create table transactions (
   source text not null,                     -- 'pwa' | 'ussd'
   created_at timestamptz default now(),
   completed_at timestamptz,
-  is_demo boolean not null default false    -- generated demo fare
+  is_demo boolean not null default false,   -- generated demo fare
+  -- Daraja STK push fallback (when Bitika fails) and treasury settlement
+  daraja_checkout_id text unique,
+  daraja_merchant_request_id text,
+  failure_reason text,
+  amount_sats integer,                      -- sats the treasury paid the vehicle
+  btc_kes_rate numeric,
+  ln_payment_hash text,                     -- treasury settlement claim
+  settled_at timestamptz
 );
 
 create index transactions_vehicle_created_idx on transactions (vehicle_id, created_at desc);

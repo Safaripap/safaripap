@@ -5,25 +5,31 @@ import { ConductorNav } from '@/components/ConductorNav'
 afterEach(cleanup)
 
 describe('ConductorNav', () => {
-  it('links every section with real anchors carrying the vehicle and sacco', () => {
-    render(<ConductorNav active="fares" vehicleCode="KAB123B" saccoId="s-1" />)
+  it('links both sections with real anchors carrying the vehicle', () => {
+    render(<ConductorNav active="fares" vehicleCode="KAB123B" />)
     expect(screen.getByRole('link', { name: 'Fares' }).getAttribute('href')).toBe('/dashboard/KAB123B')
     expect(screen.getByRole('link', { name: 'Prompt passenger' }).getAttribute('href')).toBe(
-      '/pay/KAB123B?from=conductor&sacco=s-1'
+      '/pay/KAB123B?from=conductor'
     )
-    expect(screen.getByRole('link', { name: 'Sacco totals' }).getAttribute('href')).toBe('/sacco/s-1?vehicle=KAB123B')
+  })
+
+  it('never offers sacco-wide totals: conductors see only their own vehicle', () => {
+    render(<ConductorNav active="fares" vehicleCode="KAB123B" />)
+    expect(screen.queryByText('Sacco totals')).toBeNull()
+    expect(screen.getAllByRole('link')).toHaveLength(2)
+    for (const link of screen.getAllByRole('link')) expect(link.getAttribute('href')).not.toMatch(/sacco/)
   })
 
   it('marks only the active section as the current page', () => {
-    render(<ConductorNav active="sacco" vehicleCode="KAB123B" saccoId="s-1" />)
-    expect(screen.getByRole('link', { name: 'Sacco totals' }).getAttribute('aria-current')).toBe('page')
+    render(<ConductorNav active="prompt" vehicleCode="KAB123B" />)
+    expect(screen.getByRole('link', { name: 'Prompt passenger' }).getAttribute('aria-current')).toBe('page')
     expect(screen.getByRole('link', { name: 'Fares' }).hasAttribute('aria-current')).toBe(false)
   })
 
-  it('does not render a dead link when the vehicle has no sacco', () => {
-    render(<ConductorNav active="fares" vehicleCode="KAB123B" saccoId={null} />)
-    expect(screen.queryByRole('link', { name: 'Sacco totals' })).toBeNull()
-    expect(screen.getByText('Sacco totals').closest('[aria-disabled="true"]')).not.toBeNull()
+  it('does not render dead links before the vehicle is known', () => {
+    render(<ConductorNav active="fares" vehicleCode={null} />)
+    expect(screen.queryAllByRole('link')).toHaveLength(0)
+    expect(screen.getByText('Fares').closest('[aria-disabled="true"]')).not.toBeNull()
   })
 
   it('is a labelled navigation landmark', () => {

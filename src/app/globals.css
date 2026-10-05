@@ -140,6 +140,20 @@ html {
   transition: transform 150ms var(--motion-ease-out);
 }
 
+/* Larger text — a manual toggle in Settings, ported from Nauli Sacco:
+   every rem-based size scales up. */
+html[data-text='large'] {
+  font-size: 118.75%;
+}
+
+/* Never below 16px in a form field, so iOS doesn't zoom the page when one
+   is focused (and larger text still scales them). From Nauli Sacco. */
+input,
+select,
+textarea {
+  font-size: max(16px, 1em);
+}
+
 /* High contrast — a manual toggle in Settings (stored per device), for
    bright sun and low vision, independent of the OS forced-colors mode.
    Faded ink goes to full strength, faint borders go solid, cards that

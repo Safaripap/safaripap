@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 
 const state = vi.hoisted(() => ({ vehicle: null as any, collect: vi.fn() }))
 
-vi.mock('@/lib/bitika', () => ({ collectPayment: state.collect }))
+vi.mock('@/lib/daraja', () => ({ stkPush: state.collect }))
 vi.mock('@/lib/supabase-admin', () => ({
   supabaseAdmin: {
     from: () => {
@@ -32,7 +32,7 @@ beforeEach(() => {
 })
 
 describe('demo matatus can never be paid', () => {
-  it('the pay API refuses them without calling Bitika', async () => {
+  it('the pay API refuses them without sending an M-Pesa prompt', async () => {
     const res = await pay(
       new NextRequest('http://localhost/api/pay', {
         method: 'POST',
