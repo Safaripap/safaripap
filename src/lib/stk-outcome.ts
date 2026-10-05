@@ -81,10 +81,10 @@ export async function applyStkOutcome(o: StkOutcome): Promise<ApplyResult> {
   const status = changed ? 'fulfilled' : tx.status
   if (changed && tx.vehicles) {
     await publishPaymentEventSoon({
+      txId: tx.id,
       vehicleCode: tx.vehicles.vehicle_code,
       saccoId: tx.vehicles.sacco_id ?? 'unassigned',
       amountKes: tx.amount_kes,
-      receiptCode: o.receipt ?? '',
     })
   }
   if (status === 'fulfilled') {

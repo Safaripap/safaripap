@@ -8,6 +8,7 @@ import { PIN_LENGTH } from '@/lib/conductor'
 import { memberEmail } from '@/lib/member-login'
 import { formatLocalKenyanNumber, isValidKenyanMobile, toLocalKenyanNumber } from '@/lib/phone'
 import { SafaripapLogo } from '@/components/SafaripapLogo'
+import { BackButton } from '@/components/BackButton'
 import { SettingsMenu } from '@/components/SettingsMenu'
 
 // Sacco managers and matatu owners: phone number + PIN. Accounts are created
@@ -35,8 +36,13 @@ export default function ManageLoginPage() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-6 py-10">
       <form onSubmit={signIn} className="w-full max-w-sm">
-        <div className="mb-8 flex items-center justify-between gap-4">
-          <SafaripapLogo />
+        <div className="mb-8 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <BackButton href="/signin" label="Back" />
+            <Link href="/" aria-label="Safaripap home" className="inline-flex min-h-[3.25rem] items-center rounded-lg">
+              <SafaripapLogo size="sm" wordmark={false} />
+            </Link>
+          </div>
           <SettingsMenu />
         </div>
         <h1 className="text-2xl font-bold mb-1">Sacco sign in</h1>

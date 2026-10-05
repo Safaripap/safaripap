@@ -71,6 +71,14 @@ describe('pay screen phone entry', () => {
     expect(pay.disabled).toBe(false)
   })
 
+  it('lets the passenger go back and change the fare, keeping what they typed', async () => {
+    await openPhoneScreen()
+    fireEvent.click(screen.getByRole('button', { name: 'Change fare (KES 50)' }))
+    const fare = (await screen.findByLabelText('Fare in Kenyan shillings')) as HTMLInputElement
+    expect(fare.value).toBe('50')
+    expect(document.activeElement?.textContent).toBe('How much is the fare?')
+  })
+
   it('sends the number in 254 format', async () => {
     const input = await openPhoneScreen()
     fireEvent.change(input, { target: { value: '0712 345 678' } })

@@ -36,7 +36,7 @@ Pay with ordinary M-Pesa. Settle instantly in Bitcoin, straight into the vehicle
 | **Passenger** | Scans a QR code or dials a USSD code, then pays with M-Pesa from their own phone |
 | **Conductor** | Watches fares land on a live dashboard, with no need to inspect anyone's phone |
 | **Owner or SACCO** | Receives fares as Bitcoin into a wallet tied to one specific vehicle, and sees daily totals per vehicle on their own dashboard |
-| **Transparency** | Every successful payment publishes a public receipt event to Nostr |
+| **Transparency** | Every paid fare is published to Nostr, and each night every matatu's day is signed as a report anyone can check at `/verify` |
 
 ---
 
@@ -56,7 +56,7 @@ Paying a matatu fare by M-Pesa today usually means handing your phone, or at lea
 
 Safaripap removes the phone-showing step. The passenger pays from their own phone, using a QR code or a USSD code, and never has to hand the device to anyone. The fare then appears on the conductor's live dashboard, driven by a signed payment confirmation from the payment provider rather than a screen shown by the passenger.
 
-Each successful payment is settled as Bitcoin into that specific vehicle's own Lightning wallet, and a public receipt is published to Nostr. The passenger is not exposed, the conductor confirms against a trusted source, and the owner gets a clear record per vehicle.
+Each successful payment is settled as Bitcoin into that specific vehicle's own Lightning wallet, and the fare is published to Nostr, with a signed daily report per vehicle that anyone can check. The passenger is not exposed, the conductor confirms against a trusted source, and the owner gets a clear record per vehicle.
 
 ---
 
@@ -69,7 +69,7 @@ Safaripap is not a payments app with Bitcoin attached. The design depends on pro
 | **Each vehicle holds its own funds** | Every matatu has its own Lightning wallet and Lightning Address. Fares settle directly into it, with no shared till or paybill account between the passenger and the vehicle. Funds can be withdrawn to a Lightning wallet the owner controls. |
 | **Built for small, fast payments** | Lightning settles low-value payments in seconds, which suits fares of a few tens of shillings. |
 | **Open and borderless** | Bitcoin and Lightning are open protocols. A SACCO is not tied to one provider's platform to hold or move its earnings. |
-| **Public, checkable record** | Receipts are published to Nostr, an open protocol with many independent relays. Anyone with the event data can read it without asking Safaripap's permission. |
+| **Public, checkable record** | Fares and signed daily reports are published to Nostr, an open protocol with many independent relays. A report carries a SHA-256 hash of the day's fare list; `/verify` fetches it straight from the relays and recomputes the hash in the browser, so anyone can see the numbers weren't changed after signing. No phone numbers or M-Pesa receipts are ever published. |
 | **Familiar for the passenger** | The passenger still pays with M-Pesa. There is no new wallet, no seed phrase and no learning curve. Bitcoin is the settlement layer underneath. |
 
 ---
@@ -105,7 +105,7 @@ flowchart TD
     B -->|result + M-Pesa receipt| W[/api/hooks/payment-result/]
     W -->|update| DB[(Supabase)]
     DB -->|Realtime| D[Conductor dashboard]
-    W -->|receipt event| N[Nostr relays]
+    W -->|fare event| N[Nostr relays]
     W -->|pay invoice| T[LNbits treasury wallet]
     T -->|sats| L[Vehicle's LNbits wallet]
 ```
@@ -117,7 +117,7 @@ flowchart TD
 | 3 | **Verify** | Daraja calls `/api/hooks/payment-result` (token-checked) with the result and the M-Pesa receipt, and the fare is marked paid or failed. If that callback is slow, the pay page asks Daraja directly after 30 seconds (STK query) and the receipt fills in when the callback lands. |
 | 4 | **Settle** | Once paid, the pre-funded LNbits treasury wallet pays an invoice from the vehicle's wallet for the fare's value in sats (`src/lib/treasury.ts`). A fare is claimed before it's paid, so it is never paid twice; a low treasury leaves it to retry after a top-up. |
 | 5 | **Monitor** | The conductor signs in at `/login` with a vehicle code and PIN. `/dashboard/<vehicleCode>` shows only that vehicle's fares and updates live through Supabase Realtime. |
-| 6 | **Publish** | On a successful payment, a receipt event is published to Nostr relays. |
+| 6 | **Publish** | Each paid fare is published to Nostr (amount and vehicle only). Just after midnight a job signs each matatu's day as a report with a hash of its fare list, and tidies any fare that didn't finish (asks Daraja, retries settlement, re-publishes missed events). |
 | 7 | **Report** | SACCO managers and matatu owners sign in at `/manage/login` with a phone number and PIN. `/manage` shows fare totals for any date range: the period total against the previous period, fares per day, totals per vehicle, and a spreadsheet download. |
 
 New SACCOs ask to join at `/join`. Safaripap staff review requests in the admin area (`/admin`) and onboard each matatu in about a minute: the app creates its LNbits wallet and Lightning Address, saves the vehicle, creates the conductor login, and produces a printable QR sticker.
@@ -156,7 +156,8 @@ New SACCOs ask to join at `/join`. Safaripap staff review requests in the admin 
 | **Demo data** | Placeholder vehicles used to fill the SACCO dashboard are flagged as demo, labelled on screen, and refused by the payment API and USSD. Their Lightning Address is on a reserved `.invalid` domain, so they can never be paid. |
 | **Privileged keys** | The Supabase service role key and Bitika credentials exist only on the server. The browser uses the anon key, limited by Row Level Security. |
 | **Funds custody** | Each vehicle has its own LNbits wallet, so one vehicle's funds are not pooled with another's. |
-| **Relay failures** | Nostr publishing is non-blocking. A slow or unavailable relay never delays or fails the webhook response. |
+| **Relay failures** | Nostr publishing is non-blocking. A slow or unavailable relay never delays or fails a payment; each fare records its event id, and the daily job re-publishes any that didn't reach a relay. |
+| **Public data** | Nostr events carry amounts and vehicle codes only. Phone numbers and M-Pesa receipts never leave the server; a daily report's hash covers the last 3 receipt characters so a passenger can find their own fare at `/verify`. |
 | **Input handling** | Phone numbers are normalized server-side (`07`, `01` and `254` formats are accepted) before reaching the payment provider. |
 
 > [!WARNING]
@@ -172,7 +173,7 @@ New SACCOs ask to join at `/join`. Safaripap staff review requests in the admin 
 | Data | Supabase (Postgres and Realtime) | SACCOs, vehicles, transactions, live dashboard feed |
 | Payments | Safaricom Daraja (M-Pesa STK push) + LNbits treasury | Collects fares in KES, then pays each vehicle in sats. [Bitika](https://bitika.xyz) is still in the code but switched off (see `src/lib/collect.ts`) |
 | Custody | LNbits | One Lightning wallet and Lightning Address per vehicle |
-| Transparency | Nostr | Public payment receipt events |
+| Transparency | Nostr (NIP-78 app data, kind 30078) | Public fare events and signed daily reports with a checkable hash |
 | Access | Africa's Talking | USSD channel for passengers without smartphones |
 
 <details>
@@ -188,7 +189,8 @@ src/
     pay/[vehicleCode]/page.tsx          Passenger PWA
     login/page.tsx                      Conductor sign-in (vehicle code + PIN)
     dashboard/[vehicleCode]/page.tsx    Conductor dashboard (Supabase Realtime, search)
-    sacco/[saccoId]/page.tsx            Today's SACCO totals from public Nostr receipts (not shown to conductors)
+    sacco/[saccoId]/page.tsx            Today's SACCO totals from public Nostr fare events (not shown to conductors)
+    verify/page.tsx                     Public check of a matatu's day against its signed Nostr report
     manage/login/page.tsx               Manager and owner sign-in (phone + PIN)
     manage/page.tsx                     Fare metrics dashboard for managers and owners
     join/page.tsx                       Request to join, for new SACCOs and owners
@@ -221,7 +223,10 @@ src/
     supabase-admin.ts                   Server-side Supabase client (service role)
     supabase-browser.ts                 Browser Supabase client (anon key)
     phone.ts                            Kenyan phone normalization (07 / 01 / 254 to 254)
-    nostr.ts                            Nostr receipt publishing
+    nostr-events.ts                     Nostr event shapes and the report hash (shared with the browser)
+    nostr.ts                            Signing and publishing to Nostr relays
+    nostr-report.ts                     Signed daily report per vehicle
+    sweep.ts                            Daily tidy-up of fares that didn't finish
 supabase/
   schema.sql                            Full database schema
   migrations/                           Changes for an existing project, in date order
@@ -249,8 +254,9 @@ tests/                                  Vitest unit and route tests
 | `LNBITS_HOST` | Server only | Your LNbits instance, e.g. `https://your-instance.lnbits.com` |
 | `LNBITS_ADMIN_KEY` | Server only | Admin key of the super user's wallet. Every vehicle wallet is created under the same account |
 | `LNBITS_ACCESS_TOKEN` | Server only | Account access token (from an LNbits access control list) allowed to create wallets. LNbits 1.x refuses a wallet admin key for this |
-| `NOSTR_SECRET_KEY_HEX` | Server only | Key that signs receipt events. Generate with `node scripts/gen-nostr-key.mjs` |
-| `NEXT_PUBLIC_NOSTR_APP_PUBKEY` | Client | Public key matching the secret above, used to read receipts |
+| `NOSTR_SECRET_KEY_HEX` | Server only | Key that signs fare events and daily reports. Generate with `node scripts/gen-nostr-key.mjs` |
+| `NEXT_PUBLIC_NOSTR_APP_PUBKEY` | Client | Public key matching the secret above, used to read fares and check reports |
+| `CRON_SECRET` | Server only | Long random string; Vercel sends it to the daily job (`/api/cron/daily`), which refuses anything else |
 | `ADMIN_PASSCODE` | Server only | Passcode for the staff area at `/admin` |
 | `NEXT_PUBLIC_APP_URL` | Server | The deployed site's address. QR stickers point here, so a sticker printed from a laptop never points at `localhost` |
 

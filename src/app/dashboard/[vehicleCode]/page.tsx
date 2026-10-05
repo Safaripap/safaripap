@@ -259,7 +259,7 @@ export default function DashboardPage({ params }: { params: { vehicleCode: strin
 
   return (
     <main className="min-h-screen p-4 pb-32">
-      <AppHeader plate={code} alerts />
+      <AppHeader plate={code} alerts back={{ href: '/', label: 'Home' }} />
 
       <div className="mb-4 flex items-baseline justify-between gap-4">
         <h1 className="font-display text-display-sm">Fares</h1>

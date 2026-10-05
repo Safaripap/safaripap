@@ -42,7 +42,7 @@ export default function EnterVehicleCodePage() {
 
   return (
     <main className="min-h-screen flex flex-col px-6 pt-8 pb-10">
-      <AppHeader />
+      <AppHeader back={{ href: '/', label: 'Home' }} />
 
       <div className="flex-1 flex flex-col items-center justify-center">
         <form onSubmit={submit} className="w-full max-w-sm">

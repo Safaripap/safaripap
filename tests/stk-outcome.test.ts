@@ -59,7 +59,7 @@ describe('applyStkOutcome', () => {
   it("marks the fare paid with Daraja's receipt, publishes it, then settles sats from the treasury", async () => {
     await expect(applyStkOutcome(paid('TDK4H7X9F3'))).resolves.toEqual({ txId: 't1', status: 'fulfilled', changed: true })
     expect(state.tx).toMatchObject({ status: 'fulfilled', mpesa_receipt: 'TDK4H7X9F3' })
-    expect(state.publish).toHaveBeenCalledWith(expect.objectContaining({ vehicleCode: 'KAB123B', receiptCode: 'TDK4H7X9F3' }))
+    expect(state.publish).toHaveBeenCalledWith({ txId: 't1', vehicleCode: 'KAB123B', saccoId: 's1', amountKes: 1 })
     expect(state.settle).toHaveBeenCalledWith('t1')
   })
 
