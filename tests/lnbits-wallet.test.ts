@@ -26,3 +26,10 @@ describe('LNbits wallet API', () => {
     await expect(getBalance('inkey')).rejects.toThrow('LNBITS_HOST')
   })
 })
+
+describe('LNbits responses that are not API answers', () => {
+  it('reports the status and content type of an empty 200, instead of a schema error', async () => {
+    fetchMock.mockResolvedValue(new Response('', { status: 200, headers: { 'content-type': 'text/html' } }))
+    await expect(getBalance('inkey')).rejects.toThrow('returned 200 with no JSON (content-type text/html, 0 bytes)')
+  })
+})

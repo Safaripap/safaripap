@@ -60,6 +60,16 @@ async function call(path: string, key: string, init: CallInit = {}): Promise<unk
     const msg = detail.success ? JSON.stringify(detail.data.detail) : text.slice(0, 200)
     throw new LnbitsError(`LNbits ${init.method ?? 'GET'} ${path} failed (${res.status}): ${msg}`, res.status)
   }
+  // A 2xx without a JSON body isn't an LNbits API answer (e.g. a proxy or
+  // challenge page in front of it). Say so, rather than failing later on a
+  // schema mismatch that hides the status and body.
+  if (json === null) {
+    const ct = res.headers.get('content-type') ?? 'none'
+    throw new LnbitsError(
+      `LNbits ${init.method ?? 'GET'} ${path} returned ${res.status} with no JSON (content-type ${ct}, ${text.length} bytes): ${text.slice(0, 120)}`,
+      res.status
+    )
+  }
   return json
 }
 

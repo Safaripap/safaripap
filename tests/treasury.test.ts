@@ -80,3 +80,11 @@ describe('settleTransaction', () => {
     expect(state.updates.at(-1).status).toBeUndefined() // stays 'fulfilled'
   })
 })
+
+describe('unexpected settlement errors', () => {
+  it('are recorded on the fare, not just logged', async () => {
+    ln.getBalance.mockRejectedValue(new Error('LNbits GET /api/v1/wallet returned 200 with no JSON'))
+    await expect(settleTransaction('t1')).rejects.toThrow('no JSON')
+    expect(state.updates.at(-1)).toEqual({ failure_reason: 'settlement_error: LNbits GET /api/v1/wallet returned 200 with no JSON' })
+  })
+})

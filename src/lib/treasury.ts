@@ -37,6 +37,18 @@ function treasuryAdminKey(): string {
 }
 
 export async function settleTransaction(txId: string): Promise<SettleResult> {
+  try {
+    return await settle(txId)
+  } catch (e) {
+    // Record the error on the fare so it isn't lost with the function logs;
+    // the fare stays 'fulfilled' and unsettled, ready to retry.
+    const reason = `settlement_error: ${(e as Error).message}`.slice(0, 500)
+    await supabaseAdmin.from('transactions').update({ failure_reason: reason }).eq('id', txId).is('settled_at', null)
+    throw e
+  }
+}
+
+async function settle(txId: string): Promise<SettleResult> {
   const db = supabaseAdmin
   const { data: tx, error } = await db
     .from('transactions')

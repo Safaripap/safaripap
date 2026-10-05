@@ -118,7 +118,9 @@ export default function PayPage({
         }
         if (data.provider === 'daraja' && !queried && Date.now() - startedAt > AUTO_QUERY_AFTER_MS) {
           queried = true
-          await fetch(`/api/transactions/${data.transactionCode}/query`, { method: 'POST' }).catch(() => undefined)
+          // Not awaited: the query marks the fare paid before it publishes the
+          // receipt and settles sats, so the next poll can show success at once.
+          fetch(`/api/transactions/${data.transactionCode}/query`, { method: 'POST' }).catch(() => undefined)
         }
         const statusRes = await fetch(`/api/transactions/${data.transactionCode}`)
         if (!statusRes.ok) return
